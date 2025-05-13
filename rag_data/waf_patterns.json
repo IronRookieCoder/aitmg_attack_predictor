@@ -1,0 +1,92 @@
+{
+  "waf_block_patterns": [
+    {
+      "pattern": "Access Denied - Security Blocked",
+      "type": "WAF_BLOCK",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "您的访问已被拦截",
+      "type": "WAF_BLOCK",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "detected and blocked by WAF",
+      "type": "WAF_BLOCK",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "Request blocked by security rules",
+      "type": "WAF_BLOCK",
+      "result": "FAILURE"
+    }
+  ],
+  "sql_injection_patterns": [
+    {
+      "pattern": "SQL syntax.*MySQL",
+      "type": "SQL_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Warning.*mysql_.*",
+      "type": "SQL_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "PostgreSQL.*ERROR",
+      "type": "SQL_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "ORA-[0-9][0-9][0-9][0-9]",
+      "type": "SQL_ERROR",
+      "result": "SUCCESS"
+    }
+  ],
+  "sensitive_info_patterns": [
+    {
+      "pattern": "SELECT.*FROM.*WHERE",
+      "type": "SQL_DUMP",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "/etc/passwd",
+      "type": "FILE_CONTENT",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "root:.*:0:0:",
+      "type": "FILE_CONTENT",
+      "result": "SUCCESS"
+    }
+  ],
+  "authentication_patterns": [
+    {
+      "pattern": "Invalid username or password",
+      "type": "AUTH_FAILURE",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "Login failed",
+      "type": "AUTH_FAILURE",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "Authentication failed",
+      "type": "AUTH_FAILURE",
+      "result": "FAILURE"
+    }
+  ],
+  "generic_error_patterns": [
+    {
+      "pattern": "Internal Server Error",
+      "type": "SERVER_ERROR",
+      "result": "UNKNOWN"
+    },
+    {
+      "pattern": "500 Server Error",
+      "type": "SERVER_ERROR",
+      "result": "UNKNOWN"
+    }
+  ]
+}

@@ -1,0 +1,225 @@
+# Web 攻击结果识别系统
+
+基于大语言模型的 Web 攻击结果识别系统，支持对 WAF 攻击结果进行自动分类和分析。
+
+## 功能特点
+
+- 支持多个大语言模型的并行调用
+- 基于模式匹配的响应分析
+- 灵活的投票策略和评估机制
+- 批量处理支持
+- 增量保存和结果合并
+
+## 系统架构
+
+系统由以下核心模块组成：
+
+1. **LLM 接口模块** (llm_interface.py)
+
+   - 提供统一的模型调用接口
+   - 支持错误重试和并行调用
+   - 内置多个模型支持
+
+2. **RAG 辅助模块** (rag_helper.py)
+
+   - 基于规则的响应分析
+   - 动态 Prompt 增强
+   - 结果建议生成
+
+3. **数据加载模块** (data_loader.py)
+
+   - 数据加载和验证
+   - Few-shot 示例选择
+   - 批量处理支持
+
+4. **评估策略模块** (evaluate_strategies.py)
+   - 多种投票策略实现
+   - 模型组合评估
+   - 性能指标计算
+
+## 安装说明
+
+1. 克隆项目代码：
+
+```bash
+git clone [repository_url]
+cd aitmg_attack_predictor
+```
+
+2. 安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+3. 配置模型访问：
+   - 在 config.json 中配置工号和模型池
+   - 确保有必要的 API 访问权限
+
+## 使用方法
+
+### 1. 基本使用
+
+```bash
+# 单次预测
+python main.py --input single.csv --output results.csv
+
+# 批量处理
+python main.py --input batch/ --output results/ --batch
+```
+
+### 2. 评估模式
+
+```bash
+# 运行评估
+python evaluate_strategies.py --data validation.csv
+
+# 运行测试
+bash run_tests.sh
+```
+
+### 3. 结果合并
+
+```bash
+# 合并批处理结果
+python merge_batches.py --input results/ --output final.csv
+```
+
+## 配置说明
+
+### config.json
+
+```json
+{
+  "model_pool": [
+    "secgpt7b",
+    "qwen3-8b",
+    "qwen7b",
+    "deepseek-r1-distill-qwen7b"
+  ],
+  "labels": ["SUCCESS", "FAILURE", "UNKNOWN"],
+  "batch_processing": {
+    "enabled": true,
+    "batch_size": 32
+  }
+}
+```
+
+### 模式文件 (rag_data/waf_patterns.json)
+
+```json
+{
+  "waf_block_patterns": [
+    {
+      "pattern": "Access Denied.*Security",
+      "type": "WAF_BLOCK",
+      "result": "FAILURE"
+    }
+  ]
+}
+```
+
+## 输入输出格式
+
+### 输入 CSV 格式
+
+```csv
+uuid,req,rsp
+1,"GET /admin","403 Forbidden"
+2,"POST /login","Access Denied"
+```
+
+### 输出 CSV 格式
+
+```csv
+uuid,predict
+1,"FAILURE"
+2,"FAILURE"
+```
+
+## 性能优化
+
+1. **批处理机制**
+
+   - 自动分批处理大数据集
+   - 支持增量保存结果
+   - 断点续传支持
+
+2. **并行处理**
+
+   - 多模型并行调用
+   - 异步 IO 处理
+   - 线程池优化
+
+3. **错误处理**
+   - 智能重试机制
+   - 异常恢复
+   - 详细的日志记录
+
+## 开发说明
+
+### 添加新模型
+
+1. 在 `config.json` 中添加模型配置
+2. 在 `llm_interface.py` 中实现模型调用方法
+3. 更新单元测试
+
+### 自定义评估策略
+
+1. 在 `evaluate_strategies.py` 中添加新的投票策略
+2. 实现评估方法
+3. 在配置中启用新策略
+
+## 测试覆盖
+
+运行测试套件：
+
+```bash
+# 运行所有测试
+bash run_tests.sh
+
+# 运行单个测试模块
+python -m unittest tests/test_rag_helper.py
+```
+
+## 注意事项
+
+1. 确保模型 API 的稳定访问
+2. 定期更新模式文件
+3. 监控系统资源使用
+4. 及时处理错误日志
+
+## 问题排查
+
+### 常见问题
+
+1. 模型调用超时
+
+   - 检查网络连接
+   - 确认 API 限流设置
+   - 调整超时参数
+
+2. 内存使用过高
+
+   - 减小批处理大小
+   - 启用增量保存
+   - 清理缓存数据
+
+3. 结果不一致
+   - 检查模型权重设置
+   - 验证投票策略配置
+   - 更新模式文件
+
+### 日志说明
+
+```python
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+```
+
+系统使用 Python 标准日志模块，支持不同级别的日志记录：
+
+- INFO: 正常操作信息
+- WARNING: 需要注意的情况
+- ERROR: 错误但可恢复
+- CRITICAL: 严重错误
