@@ -50,9 +50,26 @@ class LLMInterface:
         
         self.max_retries = self.config.get('max_retries', 3)
         self.timeout = self.config.get('timeout', 120)
+        
+        # SGLANG服务配置
+        self.SGLANG_ENDPOINT = "https://aip.sangfor.com.cn:12588/v1"
+        self.api_key = "sk-FRdCi5yEKxUyDcRp2fBd67921aCa4bA391506cE7C3Dd7863"
+        
+        # 创建OpenAI兼容客户端
+        from openai import OpenAI
+        self.client = OpenAI(
+            base_url=self.SGLANG_ENDPOINT,
+            api_key=self.api_key,
+            timeout=self.timeout * 1000  # 转换为毫秒
+        )
+
+        # 检查模型池配置
+        if 'model_pool' not in self.config:
+            raise ValueError("Missing model_pool in config")
+        self.model_pool = set(self.config['model_pool'])  # 用于快速验证
 
     def call_llm(self, model_name: str, prompt: str) -> str:
-        """调用单个LLM模型
+        """调用LLM模型
         
         该方法处理单个模型的调用，包括错误重试和响应验证。
         如果多次重试后仍然失败，返回"LLM_ERROR"。
@@ -68,6 +85,10 @@ class LLMInterface:
         Raises:
             ValueError: 当指定的模型名称不在支持列表中时
         """
+        # 验证模型名称
+        if model_name not in self.model_pool:
+            raise ValueError(f"Model {model_name} not in configured model pool")
+
         for attempt in range(self.max_retries):
             try:
                 # 根据不同的模型调用对应的实现
@@ -111,8 +132,16 @@ class LLMInterface:
             - 默认最多4个并行线程
             - 每个模型调用都有独立的重试机制
         """
+        # 验证所有模型名称
+        invalid_models = [m for m in models if m not in self.model_pool]
+        if invalid_models:
+            raise ValueError(f"Models {invalid_models} not in configured model pool")
+
+        # 获取批处理配置
+        max_workers = self.config.get('batch_processing', {}).get('max_workers', 4)
+        
         results = {}
-        with ThreadPoolExecutor(max_workers=min(len(models), 4)) as executor:
+        with ThreadPoolExecutor(max_workers=min(len(models), max_workers)) as executor:
             future_to_model = {
                 executor.submit(self.call_llm, model, prompt): model
                 for model in models
@@ -130,77 +159,57 @@ class LLMInterface:
         return results
 
     def _call_secgpt(self, prompt: str) -> str:
-        """调用SecGPT模型的具体实现
-        
-        Args:
-            prompt: 输入的prompt文本
-            
-        Returns:
-            str: 模型预测结果
-            
-        Note:
-            需要在实现中处理:
-            1. API认证
-            2. 请求格式化
-            3. 响应解析
-            4. 错误处理
-        """
-        # TODO: 实现具体的API调用
-        pass
+        """调用SecGPT模型"""
+        try:
+            completion = self.client.chat.completions.create(
+                model="secgpt7b",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Error calling SecGPT: {str(e)}")
+            raise
 
     def _call_qwen3(self, prompt: str) -> str:
-        """调用Qwen3模型的具体实现
-        
-        Args:
-            prompt: 输入的prompt文本
-            
-        Returns:
-            str: 模型预测结果
-            
-        Note:
-            需要在实现中处理:
-            1. API认证
-            2. 请求格式化
-            3. 响应解析
-            4. 错误处理
-        """
-        # TODO: 实现具体的API调用
-        pass
+        """调用Qwen3模型"""
+        try:
+            completion = self.client.chat.completions.create(
+                model="qwen3-8b",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                extra_body={
+                    "chat_template_kwargs": {"enable_thinking": False},
+                    "top_k": 20
+                }
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Error calling Qwen3: {str(e)}")
+            raise
 
     def _call_qwen7b(self, prompt: str) -> str:
-        """调用Qwen7b模型的具体实现
-        
-        Args:
-            prompt: 输入的prompt文本
-            
-        Returns:
-            str: 模型预测结果
-            
-        Note:
-            需要在实现中处理:
-            1. API认证
-            2. 请求格式化
-            3. 响应解析
-            4. 错误处理
-        """
-        # TODO: 实现具体的API调用
-        pass
+        """调用Qwen7b模型"""
+        try:
+            completion = self.client.chat.completions.create(
+                model="qwen7b",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Error calling Qwen7b: {str(e)}")
+            raise
 
     def _call_deepseek(self, prompt: str) -> str:
-        """调用Deepseek模型的具体实现
-        
-        Args:
-            prompt: 输入的prompt文本
-            
-        Returns:
-            str: 模型预测结果
-            
-        Note:
-            需要在实现中处理:
-            1. API认证
-            2. 请求格式化
-            3. 响应解析
-            4. 错误处理
-        """
-        # TODO: 实现具体的API调用
-        pass
+        """调用Deepseek模型"""
+        try:
+            completion = self.client.chat.completions.create(
+                model="deepseek-r1-distill-qwen7b",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Error calling Deepseek: {str(e)}")
+            raise
