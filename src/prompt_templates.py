@@ -153,24 +153,22 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
             输出格式示例:
             Example 1:
             Request:
-            """
-            """
+            \"\"\"
             GET /admin
-            """
-            """
+            \"\"\"
             
             Response:
-            """
+            \"\"\"
             403 Forbidden
-            """
+            \"\"\"
             
             Outcome: FAILURE
         """
         formatted_examples = []
         for i, example in enumerate(examples, 1):
             formatted_example = f"Example {i}:\n"
-            formatted_example += "Request:\n\"\"\"\n" + example['req'] + "\n\"\"\"\n\n"
-            formatted_example += "Response:\n\"\"\"\n" + example['rsp'] + "\n\"\"\"\n\n"
+            formatted_example += f"Request:\n\"\"\"\n{example['req']}\n\"\"\"\n\n"
+            formatted_example += f"Response:\n\"\"\"\n{example['rsp']}\n\"\"\"\n\n"
             formatted_example += f"Outcome: {example['label']}\n"
             formatted_examples.append(formatted_example)
         
