@@ -37,6 +37,8 @@ class PromptTemplates:
     Attributes:
         TEMPLATE_V1: str 第一版基础模板
         TEMPLATE_V2: str 第二版增强模板
+        TEMPLATE_V3: str 第三版结论在前模板
+        TEMPLATE_VERIFY: str 用于验证的模板
         config: Dict 配置信息
     """
 
@@ -108,6 +110,100 @@ UNKNOWN when:
 # Required Output Format
 Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
 
+    TEMPLATE_V3 = """
+# Role
+You are a cybersecurity analyst specializing in attack outcome classification.
+
+# Analysis Target
+[REQUEST]
+{req_data}
+
+[RESPONSE]
+{rsp_data}
+
+# Task
+First, give your PRELIMINARY CONCLUSION about whether this attack attempt was SUCCESS, FAILURE, or UNKNOWN.
+
+Then, EXPLAIN your reasoning by analyzing:
+1. What type of attack is being attempted
+2. Whether the response indicates successful exploitation
+3. Specific indicators in the request/response that support your conclusion
+
+Finally, provide your FINAL CONCLUSION, which may confirm or revise your preliminary conclusion based on your analysis.
+
+# Classification Criteria
+SUCCESS: 
+- Contains data leakage evidence (e.g., database dumps, file contents)
+- Shows command execution results
+- Displays SQL/injection errors revealing successful exploitation
+- Contains sensitive information not normally accessible
+
+FAILURE:
+- WAF/security block page
+- 403/401 Forbidden responses
+- Input validation errors without sensitive data leak
+- Expected exploitation behavior absent
+
+UNKNOWN:
+- Generic error messages without clear outcome indicators
+- Ambiguous responses that don't clearly show success or failure
+- Request doesn't contain clear attack signatures
+- Insufficient evidence to determine outcome
+
+# Examples
+{few_shot_examples}
+
+# Output Format
+PRELIMINARY CONCLUSION: [SUCCESS/FAILURE/UNKNOWN]
+
+ANALYSIS:
+[Your detailed reasoning and evidence analysis]
+
+FINAL CONCLUSION: [SUCCESS/FAILURE/UNKNOWN]"""
+
+    TEMPLATE_VERIFY = """
+# Role
+You are a security review expert who verifies attack classification decisions.
+
+# Context
+An initial assessment has classified an attack attempt as: {initial_classification}
+
+# Evidence
+[REQUEST]
+{req_data}
+
+[RESPONSE]
+{rsp_data}
+
+# Task
+Review the evidence and decide if you AGREE or DISAGREE with the initial classification.
+
+# Classification Criteria
+SUCCESS indicators:
+- Clear data leak in response (database records, sensitive files)
+- Visible command execution output
+- Error messages revealing successful exploitation
+- Access to protected resources
+
+FAILURE indicators:
+- WAF/firewall block messages
+- 403/401 access denied responses
+- Input sanitization errors
+- No evidence of successful exploitation
+
+UNKNOWN when:
+- Evidence is ambiguous or insufficient
+- Generic error messages without clear indicators
+- Response doesn't clearly indicate success or failure
+
+# Output Format
+VERIFICATION: [AGREE/DISAGREE]
+
+REASONING:
+[Brief explanation of why you agree or disagree]
+
+CORRECT CLASSIFICATION: [SUCCESS/FAILURE/UNKNOWN]"""
+
     def __init__(self, config_path: str = "config.json"):
         """初始化Prompt模板管理器
         
@@ -124,14 +220,14 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
         self.logger.debug("Prompt模板管理器初始化完成")
         
         # 记录可用模板版本
-        available_templates = ["v1", "v2"]
+        available_templates = ["v1", "v2", "v3", "verify"]
         self.logger.debug(f"可用模板版本: {available_templates}")
 
     def get_template(self, template_version: str = "v1") -> str:
         """获取指定版本的模板
         
         Args:
-            template_version: 模板版本，支持"v1"和"v2"
+            template_version: 模板版本，支持"v1"、"v2"、"v3"和"verify"
             
         Returns:
             str: 模板字符串
@@ -142,6 +238,8 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
         Note:
             - v1: 基础版本，适合大多数场景
             - v2: 增强版本，提供更详细的分类指南
+            - v3: 结论在前模式，先给出初步结论，再提供分析，最后确认结论
+            - verify: 用于二次验证的模板，检查初始分类是否正确
         """
         self.logger.debug(f"获取模板版本: {template_version}")
         
@@ -149,6 +247,10 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
             return self.TEMPLATE_V1
         elif template_version == "v2":
             return self.TEMPLATE_V2
+        elif template_version == "v3":
+            return self.TEMPLATE_V3
+        elif template_version == "verify":
+            return self.TEMPLATE_VERIFY
         else:
             self.logger.error(f"请求了未知的模板版本: {template_version}")
             raise ValueError(f"未知的模板版本: {template_version}")
@@ -198,7 +300,8 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
         return result
 
     def format_prompt(self, template_version: str, req: str, rsp: str, 
-                     few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
+                     few_shot_examples: Optional[List[Dict[str, str]]] = None,
+                     initial_classification: Optional[str] = None) -> str:
         """格式化完整的prompt
         
         将所有必要的信息组合成完整的prompt，包括示例、请求和响应数据。
@@ -209,6 +312,7 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
             req: 请求数据
             rsp: 响应数据
             few_shot_examples: few-shot示例列表（可选）
+            initial_classification: 初始分类结果（仅用于verify模板）
             
         Returns:
             str: 格式化后的完整prompt
@@ -230,11 +334,19 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
         else:
             self.logger.debug("未提供few-shot示例")
         
-        prompt = template.format(
-            few_shot_examples=examples_str,
-            req_data=req,
-            rsp_data=rsp
-        )
+        # 根据不同模板类型格式化prompt
+        if template_version == "verify" and initial_classification:
+            prompt = template.format(
+                initial_classification=initial_classification,
+                req_data=req,
+                rsp_data=rsp
+            )
+        else:
+            prompt = template.format(
+                few_shot_examples=examples_str,
+                req_data=req,
+                rsp_data=rsp
+            )
         
         self.logger.debug(f"格式化完成，prompt总长度: {len(prompt)}")
         

@@ -66,52 +66,74 @@ class AttackPredictor:
             matches = self.rag_helper.analyze_response(row['rsp'])
             rag_suggestion = self.rag_helper.get_suggested_result(matches)
             
-            # 获取当前策略是默认最佳策略还是单一模型策略
+            # 获取当前策略
             current_strategy = self.best_strategy
             
-            # 如果是单一模型策略类型
-            if self.best_strategy['type'] == 'single_model':
-                model_name = self.best_strategy.get('model_name')
-                logger.debug(f"使用单一模型策略: {model_name}")
+            # 使用新的analyze_attack方法进行预测
+            if current_strategy.get('use_review_filter', False):
+                logger.debug("使用ReviewFilter模式进行预测")
+                
+                # 检查模型池
+                models_primary = current_strategy.get('models', list(self.llm_interface.model_pool))
+                model_verify = current_strategy.get('verify_model', 'secgpt7b')
+                
+                # 调用analyze_attack方法
+                analysis_result = self.llm_interface.analyze_attack(
+                    req=row['req'],
+                    rsp=row['rsp'],
+                    few_shot_examples=few_shot_examples,
+                    use_verify=True,
+                    models_primary=models_primary,
+                    model_verify=model_verify
+                )
+                
+                prediction = analysis_result['result']
+                logger.debug(f"ReviewFilter预测结果: {prediction}, 置信度: {analysis_result['confidence']:.2f}")
+                
+                # 记录详细分析信息
+                if logger.level <= 10:  # DEBUG level
+                    logger.debug(f"详细分析: {json.dumps(analysis_result['details'], indent=2)}")
             
-            # 格式化并增强prompt
-            prompt_template = current_strategy.get('prompt_template', 'v1')
-            prompt = self.prompt_templates.format_prompt(
-                prompt_template,
-                row['req'],
-                row['rsp'],
-                few_shot_examples
-            )
-            enhanced_prompt = self.rag_helper.enhance_prompt_with_matches(prompt, matches)
-            
-            # 根据策略类型进行预测
-            if current_strategy['type'] == 'single_model':
-                model_name = current_strategy.get('model_name')
-                logger.debug(f"使用单一模型策略: {model_name}")
-                prediction = self.llm_interface.call_llm(
-                    model_name,
-                    enhanced_prompt
+            # 使用旧的预测方式
+            else:
+                # 格式化并增强prompt
+                prompt_template = current_strategy.get('prompt_template', 'v1')
+                prompt = self.prompt_templates.format_prompt(
+                    prompt_template,
+                    row['req'],
+                    row['rsp'],
+                    few_shot_examples
                 )
-            elif current_strategy['type'] == 'single':  # 兼容旧版本
-                model_name = current_strategy.get('model')
-                logger.debug(f"使用旧版单模型策略: {model_name}")
-                prediction = self.llm_interface.call_llm(
-                    model_name,
-                    enhanced_prompt
-                )
-            else:  # vote
-                logger.debug(f"使用多模型投票策略: {','.join(current_strategy['models'])}")
-                model_predictions = self.llm_interface.call_multiple_models(
-                    current_strategy['models'],
-                    enhanced_prompt
-                )
-                if current_strategy['vote_method'] == 'majority':
-                    prediction = self.majority_vote(list(model_predictions.values()))
-                else:  # weighted
-                    prediction = self.weighted_vote(
-                        model_predictions,
-                        current_strategy.get('weights', self.config.get('model_weights', {}))
+                enhanced_prompt = self.rag_helper.enhance_prompt_with_matches(prompt, matches)
+                
+                # 根据策略类型进行预测
+                if current_strategy['type'] == 'single_model':
+                    model_name = current_strategy.get('model_name')
+                    logger.debug(f"使用单一模型策略: {model_name}")
+                    prediction = self.llm_interface.call_llm(
+                        model_name,
+                        enhanced_prompt
                     )
+                elif current_strategy['type'] == 'single':  # 兼容旧版本
+                    model_name = current_strategy.get('model')
+                    logger.debug(f"使用旧版单模型策略: {model_name}")
+                    prediction = self.llm_interface.call_llm(
+                        model_name,
+                        enhanced_prompt
+                    )
+                else:  # vote
+                    logger.debug(f"使用多模型投票策略: {','.join(current_strategy['models'])}")
+                    model_predictions = self.llm_interface.call_multiple_models(
+                        current_strategy['models'],
+                        enhanced_prompt
+                    )
+                    if current_strategy['vote_method'] == 'majority':
+                        prediction = self.majority_vote(list(model_predictions.values()))
+                    else:  # weighted
+                        prediction = self.weighted_vote(
+                            model_predictions,
+                            current_strategy.get('weights', self.config.get('model_weights', {}))
+                        )
             
             # 如果LLM预测失败，使用RAG建议
             if prediction == "LLM_ERROR" and rag_suggestion:

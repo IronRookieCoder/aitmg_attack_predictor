@@ -20,6 +20,44 @@
     "prompt_template": "v1",
     "vote_method": "majority"
   },
+  "strategy_options": {
+    "Vote_SQD_P1_Majority": {
+      "name": "Vote_SQD_P1_Majority",
+      "type": "vote",
+      "models": ["secgpt7b", "qwen3-8b", "deepseek-r1-distill-qwen7b"],
+      "prompt_template": "v1",
+      "vote_method": "majority"
+    },
+    "Vote_SQDD_P1_Majority": {
+      "name": "Vote_SQDD_P1_Majority",
+      "type": "vote",
+      "models": ["secgpt7b", "qwen3-8b", "deepseek-r1-distill-qwen7b", "qwen7b"],
+      "prompt_template": "v1",
+      "vote_method": "majority"
+    },
+    "ReviewFilter_Conclusion_First": {
+      "name": "ReviewFilter_Conclusion_First",
+      "type": "vote",
+      "models": ["secgpt7b", "qwen3-8b", "deepseek-r1-distill-qwen7b"],
+      "verify_model": "secgpt7b",
+      "prompt_template": "v3",
+      "use_review_filter": true,
+      "vote_method": "majority"
+    },
+    "ReviewFilter_SecGPT": {
+      "name": "ReviewFilter_SecGPT",
+      "type": "vote",
+      "models": ["qwen3-8b", "deepseek-r1-distill-qwen7b", "qwen7b"],
+      "verify_model": "secgpt7b",
+      "prompt_template": "v3",
+      "use_review_filter": true,
+      "vote_method": "majority"
+    }
+  },
+  "verification": {
+    "allow_override": true,
+    "default_verify_model": "secgpt7b"
+  },
   "single_model_strategies": {
     "qwen3-8b": {
       "name": "SingleModel_qwen3_8b",
@@ -27,6 +65,15 @@
       "model_name": "qwen3-8b",
       "enabled": true,
       "prompt_template": "v1"
+    },
+    "secgpt7b_review": {
+      "name": "SingleModel_secgpt7b_review",
+      "type": "single_model",
+      "model_name": "secgpt7b",
+      "enabled": true,
+      "prompt_template": "v3",
+      "use_review_filter": true,
+      "verify_model": null
     }
   },
   "max_retries": 3,
