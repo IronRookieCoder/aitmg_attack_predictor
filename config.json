@@ -23,6 +23,15 @@
     "max_concurrent_batches": 2,
     "save_interval": 100
   },
+  "output": {
+    "path": "./result"
+  },
+  "api": {
+    "sglang": {
+      "endpoint": "https://aip.sangfor.com.cn:12588/v1",
+      "api_key": "sk-FRdCi5yEKxUyDcRp2fBd67921aCa4bA391506cE7C3Dd7863"
+    }
+  },
   "logging": {
     "log_level": "info",
     "console_output": true,

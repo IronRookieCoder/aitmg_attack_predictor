@@ -55,9 +55,12 @@ class LLMInterface:
         self.max_retries = self.config.get('max_retries', 3)
         self.timeout = self.config.get('timeout', 120)
         
-        # SGLANG服务配置
-        self.SGLANG_ENDPOINT = "https://aip.sangfor.com.cn:12588/v1"
-        self.api_key = "sk-FRdCi5yEKxUyDcRp2fBd67921aCa4bA391506cE7C3Dd7863"
+        # 从配置中获取SGLANG服务配置
+        sglang_config = self.config.get('api', {}).get('sglang', {})
+        self.SGLANG_ENDPOINT = sglang_config.get('endpoint', "https://aip.sangfor.com.cn:12588/v1")
+        self.api_key = sglang_config.get('api_key', "sk-FRdCi5yEKxUyDcRp2fBd67921aCa4bA391506cE7C3Dd7863")
+        
+        self.logger.debug(f"SGLANG服务配置: {self.SGLANG_ENDPOINT}")
         
         # 创建OpenAI兼容客户端
         self.client = OpenAI(

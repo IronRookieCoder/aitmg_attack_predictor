@@ -309,8 +309,7 @@ def main():
     )
     parser.add_argument(
         '--output-dir',
-        default='.',
-        help='输出目录路径'
+        help='输出目录路径，如未指定则使用配置文件中的路径'
     )
     parser.add_argument(
         '--config',
@@ -323,6 +322,15 @@ def main():
         # 初始化预测器
         logger.info("初始化攻击预测器...")
         predictor = AttackPredictor(args.config)
+        
+        # 从配置文件中获取输出路径，如果命令行参数中指定了则优先使用命令行参数
+        with open(args.config, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        output_dir = args.output_dir if args.output_dir else config.get('output', {}).get('path', './result')
+        output_dir = Path(output_dir)
+        output_dir.mkdir(exist_ok=True, parents=True)
+        logger.info(f"输出目录: {output_dir}")
         
         # 加载数据
         logger.info("正在加载数据...")
@@ -350,7 +358,7 @@ def main():
         
         # 进行预测
         logger.info("开始预测...")
-        output_path = Path(args.output_dir) / predictor.generate_output_filename()
+        output_path = output_dir / predictor.generate_output_filename()
         predictions = predictor.predict(df_unlabeled, few_shot_examples, str(output_path))
         
         # 保存结果
