@@ -366,9 +366,16 @@ class DataLoader:
             2. 使用CSV格式保存
             3. 包含错误处理和日志记录
         """
+        # 获取配置文件中指定的输出目录
+        output_dir = Path(self.config.get('output', {}).get('path', './result'))
+        
+        # 确保输出目录存在
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
         # 构建批次文件名
         path = Path(base_path)
-        batch_path = path.parent / f"{path.stem}_batch{batch_index}{path.suffix}"
+        batch_filename = f"{path.stem}_batch{batch_index}{path.suffix}"
+        batch_path = output_dir / batch_filename
         
         self.logger.info(f"保存批次 {batch_index} 的预测结果到 {batch_path}")
         
@@ -410,11 +417,23 @@ class DataLoader:
             2. 确保UTF-8编码
             3. 包含错误处理和日志记录
         """
-        self.logger.info(f"保存 {len(predictions)} 条预测结果到 {output_path}")
+        # 获取配置文件中指定的输出目录
+        output_dir = Path(self.config.get('output', {}).get('path', './result'))
+        
+        # 确保输出目录存在
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 处理输出路径
+        path = Path(output_path)
+        # 如果输出路径是相对路径或只是文件名，则放入配置的输出目录中
+        if not path.is_absolute():
+            path = output_dir / path.name
+        
+        self.logger.info(f"保存 {len(predictions)} 条预测结果到 {path}")
         
         try:
             df = pd.DataFrame(predictions)
-            df.to_csv(output_path, index=False, encoding='utf-8')
+            df.to_csv(path, index=False, encoding='utf-8')
             
             # 记录标签分布
             if 'predict' in df.columns:
@@ -425,11 +444,11 @@ class DataLoader:
                 create_persistent_record({
                     'operation': 'save_predictions',
                     'predictions_count': len(predictions),
-                    'output_path': str(output_path),
+                    'output_path': str(path),
                     'label_distribution': label_dist
                 })
             
-            self.logger.info(f"成功保存预测结果到 {output_path}")
+            self.logger.info(f"成功保存预测结果到 {path}")
         
         except Exception as e:
             self.logger.error(f"保存预测结果出错: {str(e)}", exc_info=True)

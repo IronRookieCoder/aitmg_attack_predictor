@@ -262,7 +262,7 @@ def create_persistent_record(log_data: Dict[str, Any], level: str = "info") -> N
     
     logger = logger_module.get_logger("persistent")
     
-    # 转换为字符串并记录
+    # 转换为字符串并记录，设置ensure_ascii=False确保中文字符正确处理
     log_message = f"持久化记录: {json.dumps(log_data, ensure_ascii=False)}"
     
     # 根据级别调用相应的日志方法
