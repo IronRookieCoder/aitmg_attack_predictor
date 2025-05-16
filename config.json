@@ -14,11 +14,10 @@
   },
   "labels": ["SUCCESS", "FAILURE", "UNKNOWN"],
   "best_strategy": {
-    "name": "Vote_SQD_P1_Majority",
-    "type": "vote",
-    "models": ["secgpt7b", "qwen3-8b", "deepseek-r1-distill-qwen7b"],
-    "prompt_template": "v1",
-    "vote_method": "majority"
+    "name": "SingleModel_qwen3_8b",
+    "type": "single_model",
+    "model_name": "qwen3-8b",
+    "prompt_template": "v1"
   },
   "strategy_options": {
     "Vote_SQD_P1_Majority": {

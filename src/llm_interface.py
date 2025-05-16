@@ -511,7 +511,9 @@ class LLMInterface:
             self.logger.debug(f"SecGPT调用成功，耗时: {elapsed_time:.2f}秒")
             
             # 处理响应结果
-            return self._process_llm_response(result)
+            processed_result = self._process_llm_response(result)
+            self.logger.info(f"SecGPT模型返回结果: {processed_result}")
+            return processed_result
         except Exception as e:
             elapsed_time = time.time() - start_time
             self.logger.error(f"调用SecGPT出错: {str(e)}")
@@ -541,7 +543,9 @@ class LLMInterface:
             self.logger.debug(f"Qwen3-8B调用成功，耗时: {elapsed_time:.2f}秒")
             
             # 处理响应结果
-            return self._process_llm_response(result)
+            processed_result = self._process_llm_response(result)
+            self.logger.info(f"Qwen3-8B模型返回结果: {processed_result}")
+            return processed_result
         except Exception as e:
             elapsed_time = time.time() - start_time
             self.logger.error(f"调用Qwen3-8B出错: {str(e)}")
@@ -567,7 +571,9 @@ class LLMInterface:
             self.logger.debug(f"Qwen7B调用成功，耗时: {elapsed_time:.2f}秒")
             
             # 处理响应结果
-            return self._process_llm_response(result)
+            processed_result = self._process_llm_response(result)
+            self.logger.info(f"Qwen7B模型返回结果: {processed_result}")
+            return processed_result
         except Exception as e:
             elapsed_time = time.time() - start_time
             self.logger.error(f"调用Qwen7B出错: {str(e)}")
@@ -593,7 +599,9 @@ class LLMInterface:
             self.logger.debug(f"Deepseek调用成功，耗时: {elapsed_time:.2f}秒")
             
             # 处理响应结果
-            return self._process_llm_response(result)
+            processed_result = self._process_llm_response(result)
+            self.logger.info(f"Deepseek模型返回结果: {processed_result}")
+            return processed_result
         except Exception as e:
             elapsed_time = time.time() - start_time
             self.logger.error(f"调用Deepseek出错: {str(e)}")
