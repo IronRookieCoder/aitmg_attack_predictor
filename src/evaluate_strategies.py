@@ -192,6 +192,44 @@ class StrategyEvaluator:
         self.logger.debug(f"加权投票结果: {result}")
         return result
 
+    def single_model_prediction(self, predictions: List[Dict[str, str]], 
+                              model_name: str) -> str:
+        """单一模型预测策略
+        
+        使用指定的单一模型预测结果作为最终结果。
+        
+        Args:
+            predictions: 预测结果列表
+            model_name: 指定的模型名称
+            
+        Returns:
+            str: 单一模型的预测结果
+            
+        Note:
+            1. 如果指定模型返回LLM_ERROR，则返回UNKNOWN
+            2. 如果在预测中找不到指定模型，返回UNKNOWN
+        """
+        self.logger.debug(f"执行单一模型预测策略，使用模型: {model_name}")
+        
+        # 检查预测列表是否为空
+        if not predictions:
+            self.logger.debug("没有预测，返回UNKNOWN")
+            return 'UNKNOWN'
+        
+        # 查找指定模型的预测
+        for pred in predictions:
+            if isinstance(pred, dict) and model_name in pred:
+                result = pred[model_name]
+                if result != 'LLM_ERROR':
+                    self.logger.debug(f"模型 {model_name} 预测结果: {result}")
+                    return result
+                else:
+                    self.logger.debug(f"模型 {model_name} 返回LLM_ERROR")
+                    return 'UNKNOWN'
+        
+        self.logger.debug(f"在预测中找不到模型 {model_name}，返回UNKNOWN")
+        return 'UNKNOWN'
+
     def evaluate_strategy(self, strategy: Dict[str, Any], 
                         true_labels: List[str], 
                         predictions: List[Dict[str, str]]) -> Dict[str, float]:
@@ -228,6 +266,12 @@ class StrategyEvaluator:
             self.logger.debug("使用加权投票策略")
             pred_labels = [
                 self.weighted_vote(pred_list, strategy['weights'])
+                for pred_list in predictions
+            ]
+        elif strategy['type'] == 'single_model':
+            self.logger.debug(f"使用单一模型策略: {strategy['model_name']}")
+            pred_labels = [
+                self.single_model_prediction(pred_list, strategy['model_name'])
                 for pred_list in predictions
             ]
         else:
@@ -318,6 +362,16 @@ class StrategyEvaluator:
         self.logger.info(f"共生成 {len(model_combinations)} 种模型组合")
         
         strategies = []
+        
+        # 添加单一模型qwen3-8b策略
+        qwen3_8b_strategy = {
+            'name': 'SingleModel_qwen3_8b',
+            'type': 'single_model',
+            'model_name': 'qwen3-8b',
+            'models': ['qwen3-8b']
+        }
+        strategies.append(qwen3_8b_strategy)
+        self.logger.info("添加qwen3-8b单一模型策略")
         
         # 多数投票策略
         for models in model_combinations:

@@ -20,6 +20,15 @@
     "prompt_template": "v1",
     "vote_method": "majority"
   },
+  "single_model_strategies": {
+    "qwen3-8b": {
+      "name": "SingleModel_qwen3_8b",
+      "type": "single_model",
+      "model_name": "qwen3-8b",
+      "enabled": true,
+      "prompt_template": "v1"
+    }
+  },
   "max_retries": 3,
   "timeout": 120,
   "batch_processing": {
