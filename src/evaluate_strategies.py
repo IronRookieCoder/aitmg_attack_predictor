@@ -134,14 +134,14 @@ class StrategyEvaluator:
         return 'UNKNOWN'
 
     def weighted_vote(self, predictions: List[Dict[str, str]], 
-                     weights: Dict[str, float]) -> str:
+                     weights: Dict[str, float] = None) -> str:
         """加权投票策略
         
         基于模型的可信度权重进行加权投票。
         
         Args:
             predictions: 预测结果列表
-            weights: 模型权重映射
+            weights: 模型权重映射，若未提供则使用默认权重
             
         Returns:
             str: 加权投票结果
@@ -150,9 +150,19 @@ class StrategyEvaluator:
             1. 权重应该在[0, 1]范围内
             2. 忽略LLM_ERROR结果
             3. 如果所有模型都返回LLM_ERROR，返回UNKNOWN
+            4. 默认权重从配置文件中读取
         """
+        # 从配置文件中读取模型权重
+        if weights is None:
+            weights = self.config.get('model_weights', {})
+            if not weights:
+                self.logger.warning("配置文件中未设置模型权重，使用默认平均权重")
+                weights = {model: 1.0 for model in self.config.get('model_pool', [])}
+            self.logger.debug(f"使用配置文件中的模型权重: {weights}")
+        else:
+            self.logger.debug(f"使用提供的权重: {weights}")
+        
         self.logger.debug(f"执行加权投票，预测数量: {len(predictions)}")
-        self.logger.debug(f"使用权重: {weights}")
         
         if not predictions:
             self.logger.debug("没有预测，返回UNKNOWN")

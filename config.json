@@ -6,6 +6,12 @@
     "qwen7b",
     "deepseek-r1-distill-qwen7b"
   ],
+  "model_weights": {
+    "qwen3-8b": 1.0,
+    "qwen7b": 0.85,
+    "deepseek-r1-distill-qwen7b": 0.9,
+    "secgpt7b": 0.95
+  },
   "labels": ["SUCCESS", "FAILURE", "UNKNOWN"],
   "best_strategy": {
     "name": "Vote_SQD_P1_Majority",
