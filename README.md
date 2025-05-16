@@ -85,6 +85,32 @@ bash run_tests.sh
 python merge_batches.py --input results/ --output final.csv
 ```
 
+## 项目结构
+
+```
+├── config.json              # 系统配置文件
+├── main.py                  # 主程序入口
+├── requirements.txt         # 项目依赖
+├── return_result.sh         # 结果返回脚本
+├── run_tests.sh             # 测试运行脚本
+├── run.sh                   # 主程序运行脚本
+├── docs/                    # 文档目录
+├── rag_data/                # RAG 数据文件
+│   └── waf_patterns.json    # WAF 模式匹配规则
+├── src/                     # 源代码目录
+│   ├── data_loader.py       # 数据加载模块
+│   ├── evaluate_strategies.py # 评估策略模块
+│   ├── llm_interface.py     # LLM 接口模块
+│   ├── merge_batches.py     # 批处理结果合并
+│   ├── prompt_templates.py  # 提示词模板
+│   └── rag_helper.py        # RAG 辅助模块
+└── tests/                   # 测试目录
+    ├── __init__.py
+    ├── test_batch_processing.py
+    ├── test_evaluator.py
+    └── test_rag_helper.py
+```
+
 ## 配置说明
 
 ### config.json
