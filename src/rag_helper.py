@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import List, Dict, Optional, Union
 
 
-from src.logger_module import get_logger, create_persistent_record
+from src.logger_module import get_logger
 
 class RagHelper:
     """RAG辅助工具类
@@ -90,38 +90,16 @@ class RagHelper:
             
             self.logger.info(f"成功加载 {pattern_count} 个模式")
             
-            # 持久化记录
-            create_persistent_record({
-                'operation': 'init_rag_helper',
-                'patterns_file': patterns_file,
-                'pattern_count': pattern_count,
-                'categories': list(self.patterns.keys()),
-                'category_counts': {k: len(v) for k, v in self.patterns.items()}
-            })
-            
         except FileNotFoundError:
             self.logger.error(f"模式文件不存在: {patterns_file}")
-            create_persistent_record({
-                'operation': 'init_rag_helper',
-                'error': f"模式文件不存在: {patterns_file}"
-            }, level="error")
             raise
             
         except json.JSONDecodeError as e:
             self.logger.error(f"模式文件格式不正确: {patterns_file}, 错误: {str(e)}")
-            create_persistent_record({
-                'operation': 'init_rag_helper',
-                'error': f"模式文件格式不正确: {patterns_file}",
-                'details': str(e)
-            }, level="error")
             raise
             
         except Exception as e:
             self.logger.error(f"加载模式时出错: {str(e)}", exc_info=True)
-            create_persistent_record({
-                'operation': 'init_rag_helper',
-                'error': str(e)
-            }, level="error")
             raise
 
     def analyze_response(self, response: str) -> List[Dict[str, str]]:
@@ -165,14 +143,6 @@ class RagHelper:
             self.logger.info(f"分析完成，找到 {len(matches)} 个匹配")
         else:
             self.logger.info("分析完成，未找到匹配")
-        
-        # 持久化记录分析结果
-        create_persistent_record({
-            'operation': 'analyze_response',
-            'response_length': len(response),
-            'matches_count': len(matches),
-            'matches': matches
-        })
         
         return matches
 
@@ -268,13 +238,5 @@ class RagHelper:
         
         # 记录prompt增强
         self.logger.debug(f"原始prompt长度: {len(prompt)}, 增强后: {len(enhanced_prompt)}")
-        
-        # 持久化记录
-        create_persistent_record({
-            'operation': 'enhance_prompt',
-            'original_length': len(prompt),
-            'enhanced_length': len(enhanced_prompt),
-            'matches_count': len(matches)
-        })
         
         return enhanced_prompt

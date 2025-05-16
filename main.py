@@ -15,7 +15,7 @@ from src.data_loader import DataLoader
 from src.llm_interface import LLMInterface
 from src.prompt_templates import PromptTemplates
 from src.rag_helper import RagHelper
-from src.logger_module import init_logger, get_logger, create_persistent_record
+from src.logger_module import init_logger, get_logger
 
 class AttackPredictor:
     def __init__(self, config_path: str = "config.json"):
@@ -121,16 +121,6 @@ class AttackPredictor:
                 logger.warning(f"LLM预测失败，无RAG建议，使用UNKNOWN")
                 prediction = "UNKNOWN"
             
-            # 创建持久化记录
-            create_persistent_record({
-                'uuid': row['uuid'],
-                'request': row['req'],
-                'response': row['rsp'],
-                'prediction': prediction,
-                'rag_matches': matches,
-                'rag_suggestion': rag_suggestion
-            })
-            
             logger.debug(f"数据项处理完成: {row['uuid']}, 预测结果: {prediction}")
             return {
                 'uuid': row['uuid'],
@@ -140,13 +130,6 @@ class AttackPredictor:
         except Exception as e:
             logger = get_logger(f"{__name__}.process_item")
             logger.error(f"处理数据项出错: {row['uuid']}, 错误: {str(e)}", exc_info=True)
-            
-            # 记录错误的持久化记录
-            create_persistent_record({
-                'uuid': row['uuid'],
-                'error': str(e),
-                'traceback': traceback.format_exc() if traceback else None
-            }, level="error")
             
             return {
                 'uuid': row['uuid'],
@@ -199,16 +182,7 @@ class AttackPredictor:
         logger.info(f"批次 {batch_index} 统计信息:")
         logger.info(f"- 处理时间: {batch_time:.2f}s")
         logger.info(f"- 每秒处理项数: {items_per_second:.2f}")
-        
-        # 创建批处理持久化记录
-        create_persistent_record({
-            'batch_index': batch_index,
-            'batch_size': len(batch_df),
-            'processing_time': batch_time,
-            'items_per_second': items_per_second,
-            'success_count': sum(1 for p in predictions if p['predict'] != 'UNKNOWN'),
-            'unknown_count': sum(1 for p in predictions if p['predict'] == 'UNKNOWN')
-        }, level="info")
+        logger.info(f"- 成功率: {sum(1 for p in predictions if p['predict'] != 'UNKNOWN')}/{len(predictions)}")
         
         return predictions
 
@@ -364,17 +338,9 @@ def main():
         few_shot_examples = predictor.data_loader.select_few_shot_examples(df_labeled)
         logger.info(f"已选择few-shot示例: {len(few_shot_examples)}个")
         
-        # 创建持久化记录
-        create_persistent_record({
-            'run_timestamp': datetime.now().isoformat(),
-            'labeled_data_path': args.labeled_data,
-            'unlabeled_data_path': args.unlabeled_data,
-            'labeled_data_count': len(df_labeled),
-            'unlabeled_data_count': len(df_unlabeled),
-            'few_shot_examples_count': len(few_shot_examples),
-            'config_path': args.config,
-            'best_strategy': predictor.best_strategy
-        })
+        # 记录运行参数
+        logger.info(f"运行参数: labeled={args.labeled_data}, unlabeled={args.unlabeled_data}, config={args.config}")
+        logger.info(f"使用策略: {predictor.best_strategy['name']}")
         
         # 进行预测
         logger.info("开始预测...")
@@ -385,25 +351,13 @@ def main():
         predictor.data_loader.save_predictions(predictions, output_path)
         logger.info(f"结果已保存到: {output_path}")
         
-        # 记录运行结束信息
-        create_persistent_record({
-            'run_completed': True,
-            'predictions_count': len(predictions),
-            'output_path': str(output_path),
-            'success_count': sum(1 for p in predictions if p['predict'] != 'UNKNOWN'),
-            'unknown_count': sum(1 for p in predictions if p['predict'] == 'UNKNOWN')
-        })
+        # 统计预测结果
+        success_count = sum(1 for p in predictions if p['predict'] != 'UNKNOWN')
+        unknown_count = sum(1 for p in predictions if p['predict'] == 'UNKNOWN')
+        logger.info(f"预测统计: 总数={len(predictions)}, 成功={success_count}, 未知={unknown_count}")
         
     except Exception as e:
         logger.error(f"主程序执行错误: {str(e)}", exc_info=True)
-        
-        # 记录错误信息
-        import traceback
-        create_persistent_record({
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }, level="error")
-        
         raise
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@ import requests
 from openai import OpenAI
 
 
-from src.logger_module import get_logger, create_persistent_record
+from src.logger_module import get_logger
 
 class LLMInterface:
     """LLM接口封装类
@@ -77,14 +77,6 @@ class LLMInterface:
         self.model_pool = set(self.config['model_pool'])  # 用于快速验证
         self.logger.info(f"可用模型池: {sorted(list(self.model_pool))}")
         self.logger.debug(f"最大重试次数: {self.max_retries}, 超时设置: {self.timeout}秒")
-        
-        # 记录初始化信息
-        create_persistent_record({
-            'operation': 'init_llm_interface',
-            'model_pool': list(self.model_pool),
-            'max_retries': self.max_retries,
-            'timeout': self.timeout
-        })
 
     def call_llm(self, model_name: str, prompt: str) -> str:
         """调用LLM模型
@@ -136,16 +128,6 @@ class LLMInterface:
                 self.logger.info(f"模型 {model_name} 调用成功，耗时 {elapsed_time:.2f}秒")
                 self.logger.debug(f"模型 {model_name} 返回结果: {result}")
                 
-                # 持久化记录
-                create_persistent_record({
-                    'operation': 'call_llm',
-                    'model': model_name,
-                    'success': True,
-                    'elapsed_time': elapsed_time,
-                    'result': result,
-                    'attempt': attempt + 1
-                })
-                
                 return result
             
             except Exception as e:
@@ -153,16 +135,6 @@ class LLMInterface:
                 # 最后一次尝试失败
                 if attempt == self.max_retries - 1:
                     self.logger.error(f"模型 {model_name} 在尝试 {self.max_retries} 次后调用失败: {str(e)}", exc_info=True)
-                    
-                    # 持久化记录
-                    create_persistent_record({
-                        'operation': 'call_llm',
-                        'model': model_name,
-                        'success': False,
-                        'elapsed_time': elapsed_time,
-                        'error': str(e),
-                        'traceback': traceback.format_exc()
-                    }, level="error")
                     
                     return "LLM_ERROR"
                 
@@ -227,15 +199,6 @@ class LLMInterface:
                 except Exception as e:
                     self.logger.error(f"调用模型 {model} 时发生错误: {str(e)}", exc_info=True)
                     results[model] = "LLM_ERROR"
-                    
-                    # 持久化记录错误
-                    create_persistent_record({
-                        'operation': 'call_multiple_models',
-                        'model': model,
-                        'success': False,
-                        'error': str(e),
-                        'traceback': traceback.format_exc()
-                    }, level="error")
         
         # 计算总耗时
         elapsed_time = time.time() - start_time
@@ -244,14 +207,6 @@ class LLMInterface:
         self.logger.info(f"所有模型调用完成，总耗时: {elapsed_time:.2f}秒")
         for model, result in results.items():
             self.logger.debug(f"模型 {model} 结果: {result}")
-        
-        # 持久化记录结果
-        create_persistent_record({
-            'operation': 'call_multiple_models',
-            'models': models,
-            'results': results,
-            'elapsed_time': elapsed_time
-        })
         
         return results
 
@@ -275,14 +230,6 @@ class LLMInterface:
         except Exception as e:
             elapsed_time = time.time() - start_time
             self.logger.error(f"调用SecGPT出错: {str(e)}")
-            
-            # 持久化记录错误
-            create_persistent_record({
-                'operation': 'call_secgpt',
-                'elapsed_time': elapsed_time,
-                'error': str(e),
-                'traceback': traceback.format_exc()
-            }, level="error")
             
             raise
 
@@ -311,14 +258,6 @@ class LLMInterface:
             elapsed_time = time.time() - start_time
             self.logger.error(f"调用Qwen3-8B出错: {str(e)}")
             
-            # 持久化记录错误
-            create_persistent_record({
-                'operation': 'call_qwen3',
-                'elapsed_time': elapsed_time,
-                'error': str(e),
-                'traceback': traceback.format_exc()
-            }, level="error")
-            
             raise
 
     def _call_qwen7b(self, prompt: str) -> str:
@@ -342,14 +281,6 @@ class LLMInterface:
             elapsed_time = time.time() - start_time
             self.logger.error(f"调用Qwen7B出错: {str(e)}")
             
-            # 持久化记录错误
-            create_persistent_record({
-                'operation': 'call_qwen7b',
-                'elapsed_time': elapsed_time,
-                'error': str(e),
-                'traceback': traceback.format_exc()
-            }, level="error")
-            
             raise
 
     def _call_deepseek(self, prompt: str) -> str:
@@ -372,13 +303,5 @@ class LLMInterface:
         except Exception as e:
             elapsed_time = time.time() - start_time
             self.logger.error(f"调用Deepseek出错: {str(e)}")
-            
-            # 持久化记录错误
-            create_persistent_record({
-                'operation': 'call_deepseek',
-                'elapsed_time': elapsed_time,
-                'error': str(e),
-                'traceback': traceback.format_exc()
-            }, level="error")
             
             raise

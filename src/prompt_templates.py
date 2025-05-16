@@ -20,7 +20,7 @@ import json
 from typing import List, Dict, Optional
 
 
-from src.logger_module import get_logger, create_persistent_record
+from src.logger_module import get_logger
 
 class PromptTemplates:
     """Prompt模板管理类
@@ -126,13 +126,6 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
         # 记录可用模板版本
         available_templates = ["v1", "v2"]
         self.logger.debug(f"可用模板版本: {available_templates}")
-        
-        # 持久化记录初始化信息
-        create_persistent_record({
-            'operation': 'init_prompt_templates',
-            'config_path': config_path,
-            'available_templates': available_templates
-        })
 
     def get_template(self, template_version: str = "v1") -> str:
         """获取指定版本的模板
@@ -244,15 +237,5 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
         )
         
         self.logger.debug(f"格式化完成，prompt总长度: {len(prompt)}")
-        
-        # 持久化记录
-        create_persistent_record({
-            'operation': 'format_prompt',
-            'template_version': template_version,
-            'examples_count': len(few_shot_examples) if few_shot_examples else 0,
-            'req_length': len(req),
-            'rsp_length': len(rsp),
-            'prompt_length': len(prompt)
-        })
         
         return prompt

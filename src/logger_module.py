@@ -18,10 +18,9 @@ class LoggerModule:
     
     特性:
     - 同时支持控制台和文件输出
-    - 支持按大小或时间的日志文件轮转
-    - 可配置日志级别、格式和持久化策略
+    - 可配置日志级别和格式
     - 支持自定义日志格式
-    - 支持JSON格式日志输出
+    - 所有日志持久化到同一个文件
     """
     
     # 日志级别映射
@@ -40,13 +39,6 @@ class LoggerModule:
         "file_output": True,
         "log_dir": "logs",
         "base_filename": "attack_predictor",
-        "rotation": {
-            "type": "size",  # 可选: "size", "time", "none"
-            "max_bytes": 10485760,  # 10MB
-            "backup_count": 10,
-            "when": "midnight",  # 仅在rotation_type为"time"时使用
-        },
-        "json_format": False,
         "include_timestamp": True,
         "include_level": True,
         "include_process": False
@@ -84,8 +76,30 @@ class LoggerModule:
         # 创建主日志记录器
         self.logger = self.get_logger("main")
         
+        # 自动设置日志持久化
+        self._setup_log_persistence()
+        
         # 记录初始化消息
         self.logger.info("日志模块初始化完成")
+        
+    def _setup_log_persistence(self):
+        """
+        设置日志持久化，确保每次程序启动时写入同一个日志文件
+        """
+        if not self.config['file_output']:
+            return
+            
+        # 创建日志目录
+        log_dir = Path(self.config['log_dir'])
+        log_dir.mkdir(exist_ok=True, parents=True)
+        
+        # 获取日志文件路径
+        base_filename = self.config['base_filename']
+        if not base_filename.endswith('.log'):
+            base_filename += '.log'
+        self.log_path = log_dir / base_filename
+        
+        self.logger.info(f"日志持久化已设置，将写入文件: {self.log_path}")
     
     def _update_config(self, target: Dict[str, Any], source: Dict[str, Any]) -> None:
         """
@@ -116,10 +130,7 @@ class LoggerModule:
         root_logger.setLevel(log_level)
         
         # 创建格式化器
-        if self.config['json_format']:
-            formatter = self._create_json_formatter()
-        else:
-            formatter = self._create_text_formatter()
+        formatter = self._create_text_formatter()
         
         # 添加控制台处理器
         if self.config['console_output']:
@@ -153,45 +164,6 @@ class LoggerModule:
         log_format = ' - '.join(format_parts)
         return logging.Formatter(log_format)
     
-    def _create_json_formatter(self) -> logging.Formatter:
-        """创建JSON格式的格式化器"""
-        class JsonFormatter(logging.Formatter):
-            def __init__(self, include_timestamp, include_level, include_process):
-                self.include_timestamp = include_timestamp
-                self.include_level = include_level
-                self.include_process = include_process
-                super().__init__()
-            
-            def format(self, record):
-                log_data = {
-                    'message': record.getMessage(),
-                    'name': record.name,
-                }
-                
-                if self.include_timestamp:
-                    log_data['timestamp'] = datetime.fromtimestamp(
-                        record.created
-                    ).isoformat()
-                
-                if self.include_level:
-                    log_data['level'] = record.levelname
-                
-                if self.include_process:
-                    log_data['process_id'] = record.process
-                    log_data['process_name'] = record.processName
-                
-                # 添加异常信息
-                if record.exc_info:
-                    log_data['exception'] = self.formatException(record.exc_info)
-                
-                return json.dumps(log_data, ensure_ascii=False)
-        
-        return JsonFormatter(
-            self.config['include_timestamp'],
-            self.config['include_level'],
-            self.config['include_process']
-        )
-    
     def _create_file_handler(self, formatter: logging.Formatter) -> Optional[logging.Handler]:
         """
         创建文件处理器
@@ -205,29 +177,14 @@ class LoggerModule:
         try:
             log_dir = Path(self.config['log_dir'])
             base_filename = self.config['base_filename']
-            rotation_config = self.config['rotation']
-            rotation_type = rotation_config['type'].lower()
             
             # 创建完整的日志文件路径
             if not base_filename.endswith('.log'):
                 base_filename += '.log'
             log_path = log_dir / base_filename
             
-            # 基于轮转类型创建处理器
-            if rotation_type == 'size':
-                handler = RotatingFileHandler(
-                    log_path,
-                    maxBytes=rotation_config['max_bytes'],
-                    backupCount=rotation_config['backup_count']
-                )
-            elif rotation_type == 'time':
-                handler = TimedRotatingFileHandler(
-                    log_path,
-                    when=rotation_config['when'],
-                    backupCount=rotation_config['backup_count']
-                )
-            else:  # 'none'或其他值
-                handler = logging.FileHandler(log_path)
+            # 始终使用不轮转的文件处理器，确保写入同一个文件
+            handler = logging.FileHandler(log_path, mode='a')  # 使用追加模式
             
             handler.setFormatter(formatter)
             return handler
@@ -259,52 +216,6 @@ class LoggerModule:
         
         logging.getLogger().setLevel(level)
         self.logger.info(f"日志级别已设置为: {logging.getLevelName(level)}")
-    
-    def create_persistent_record(self, log_data: Dict[str, Any], 
-                                level: str = "info") -> None:
-        """
-        创建持久化记录
-        
-        Args:
-            log_data: 日志数据字典
-            level: 日志级别
-        """
-        # 确保日志目录存在
-        log_dir = Path(self.config['log_dir'])
-        log_dir.mkdir(exist_ok=True, parents=True)
-        
-        # 添加时间戳
-        if 'timestamp' not in log_data:
-            log_data['timestamp'] = datetime.now().isoformat()
-        
-        # 创建持久化记录文件路径
-        persistent_dir = log_dir / "persistent"
-        persistent_dir.mkdir(exist_ok=True, parents=True)
-        
-        timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-        file_path = persistent_dir / f"{level}_{timestamp_str}.json"
-        
-        # 写入数据
-        try:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(log_data, f, ensure_ascii=False, indent=2)
-            
-            # 记录创建持久化记录的消息
-            getattr(self.logger, level.lower())(
-                f"已创建持久化记录: {file_path.name}"
-            )
-        except Exception as e:
-            self.logger.error(f"创建持久化记录失败: {str(e)}")
-    
-    def rotate_logs(self) -> None:
-        """
-        手动触发日志轮转
-        """
-        root_logger = logging.getLogger()
-        for handler in root_logger.handlers:
-            if isinstance(handler, (RotatingFileHandler, TimedRotatingFileHandler)):
-                handler.doRollover()
-                self.logger.info(f"已手动触发日志轮转: {handler.baseFilename}")
 
 # 创建单例实例
 logger_module = None
@@ -340,7 +251,7 @@ def get_logger(name: str) -> logging.Logger:
 
 def create_persistent_record(log_data: Dict[str, Any], level: str = "info") -> None:
     """
-    创建持久化记录的便捷函数
+    将日志数据以普通日志形式记录到主日志文件中
     
     Args:
         log_data: 日志数据
@@ -348,4 +259,12 @@ def create_persistent_record(log_data: Dict[str, Any], level: str = "info") -> N
     """
     if logger_module is None:
         init_logger()
-    logger_module.create_persistent_record(log_data, level)
+    
+    logger = logger_module.get_logger("persistent")
+    
+    # 转换为字符串并记录
+    log_message = f"持久化记录: {json.dumps(log_data, ensure_ascii=False)}"
+    
+    # 根据级别调用相应的日志方法
+    log_method = getattr(logger, level.lower(), logger.info)
+    log_method(log_message)
