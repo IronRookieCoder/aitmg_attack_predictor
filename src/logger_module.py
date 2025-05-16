@@ -11,6 +11,8 @@ from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from pathlib import Path
 from typing import Dict, Optional, Union, Any
 
+# 默认编码，确保所有日志文件使用UTF-8
+DEFAULT_ENCODING = 'utf-8'
 
 class LoggerModule:
     """
@@ -41,7 +43,8 @@ class LoggerModule:
         "base_filename": "attack_predictor",
         "include_timestamp": True,
         "include_level": True,
-        "include_process": False
+        "include_process": False,
+        "encoding": DEFAULT_ENCODING  # 添加默认编码配置
     }
     
     def __init__(self, config_path: Optional[str] = None):
@@ -56,7 +59,7 @@ class LoggerModule:
         # 如果提供了配置文件，从中加载日志配置
         if config_path and os.path.exists(config_path):
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, 'r', encoding=DEFAULT_ENCODING) as f:
                     loaded_config = json.load(f)
                 
                 # 合并配置，仅更新logging相关部分
@@ -183,8 +186,11 @@ class LoggerModule:
                 base_filename += '.log'
             log_path = log_dir / base_filename
             
+            # 获取编码设置，确保使用UTF-8
+            encoding = self.config.get('encoding', DEFAULT_ENCODING)
+            
             # 始终使用不轮转的文件处理器，确保写入同一个文件
-            handler = logging.FileHandler(log_path, mode='a')  # 使用追加模式
+            handler = logging.FileHandler(log_path, mode='a', encoding=encoding)  # 指定编码
             
             handler.setFormatter(formatter)
             return handler
