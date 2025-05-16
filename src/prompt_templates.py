@@ -19,6 +19,9 @@
 import json
 from typing import List, Dict, Optional
 
+
+from src.logger_module import get_logger, create_persistent_record
+
 class PromptTemplates:
     """Prompt模板管理类
     
@@ -111,8 +114,25 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
         Args:
             config_path: 配置文件路径，用于加载相关配置
         """
+        # 获取日志记录器
+        self.logger = get_logger(__name__)
+        self.logger.info("初始化PromptTemplates")
+        
         with open(config_path, 'r', encoding='utf-8') as f:
             self.config = json.load(f)
+            
+        self.logger.debug("Prompt模板管理器初始化完成")
+        
+        # 记录可用模板版本
+        available_templates = ["v1", "v2"]
+        self.logger.debug(f"可用模板版本: {available_templates}")
+        
+        # 持久化记录初始化信息
+        create_persistent_record({
+            'operation': 'init_prompt_templates',
+            'config_path': config_path,
+            'available_templates': available_templates
+        })
 
     def get_template(self, template_version: str = "v1") -> str:
         """获取指定版本的模板
@@ -130,12 +150,15 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
             - v1: 基础版本，适合大多数场景
             - v2: 增强版本，提供更详细的分类指南
         """
+        self.logger.debug(f"获取模板版本: {template_version}")
+        
         if template_version == "v1":
             return self.TEMPLATE_V1
         elif template_version == "v2":
             return self.TEMPLATE_V2
         else:
-            raise ValueError(f"Unknown template version: {template_version}")
+            self.logger.error(f"请求了未知的模板版本: {template_version}")
+            raise ValueError(f"未知的模板版本: {template_version}")
 
     def format_few_shot_examples(self, examples: List[Dict[str, str]]) -> str:
         """格式化few-shot示例
@@ -164,6 +187,8 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
             
             Outcome: FAILURE
         """
+        self.logger.debug(f"格式化 {len(examples)} 个few-shot示例")
+        
         formatted_examples = []
         for i, example in enumerate(examples, 1):
             formatted_example = f"Example {i}:\n"
@@ -171,8 +196,13 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
             formatted_example += f"Response:\n\"\"\"\n{example['rsp']}\n\"\"\"\n\n"
             formatted_example += f"Outcome: {example['label']}\n"
             formatted_examples.append(formatted_example)
+            
+            self.logger.debug(f"示例 {i} 格式化完成，标签: {example['label']}")
         
-        return "\n".join(formatted_examples)
+        result = "\n".join(formatted_examples)
+        self.logger.debug(f"所有示例格式化完成，总字符数: {len(result)}")
+        
+        return result
 
     def format_prompt(self, template_version: str, req: str, rsp: str, 
                      few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
@@ -195,13 +225,34 @@ Return exactly one word (SUCCESS/FAILURE/UNKNOWN):"""
             2. 确保示例数据和目标数据格式一致
             3. 提供清晰的分隔和标记
         """
+        self.logger.info(f"格式化prompt，使用模板版本: {template_version}")
+        self.logger.debug(f"请求数据长度: {len(req)}, 响应数据长度: {len(rsp)}")
+        
         template = self.get_template(template_version)
         examples_str = ""
-        if few_shot_examples:
-            examples_str = self.format_few_shot_examples(few_shot_examples)
         
-        return template.format(
+        if few_shot_examples:
+            self.logger.debug(f"使用 {len(few_shot_examples)} 个few-shot示例")
+            examples_str = self.format_few_shot_examples(few_shot_examples)
+        else:
+            self.logger.debug("未提供few-shot示例")
+        
+        prompt = template.format(
             few_shot_examples=examples_str,
             req_data=req,
             rsp_data=rsp
         )
+        
+        self.logger.debug(f"格式化完成，prompt总长度: {len(prompt)}")
+        
+        # 持久化记录
+        create_persistent_record({
+            'operation': 'format_prompt',
+            'template_version': template_version,
+            'examples_count': len(few_shot_examples) if few_shot_examples else 0,
+            'req_length': len(req),
+            'rsp_length': len(rsp),
+            'prompt_length': len(prompt)
+        })
+        
+        return prompt

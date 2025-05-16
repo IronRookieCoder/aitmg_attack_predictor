@@ -22,5 +22,22 @@
     "max_workers": 4,
     "max_concurrent_batches": 2,
     "save_interval": 100
+  },
+  "logging": {
+    "log_level": "info",
+    "console_output": true,
+    "file_output": true,
+    "log_dir": "logs",
+    "base_filename": "attack_predictor",
+    "rotation": {
+      "type": "size",
+      "max_bytes": 10485760,
+      "backup_count": 10,
+      "when": "midnight"
+    },
+    "json_format": false,
+    "include_timestamp": true,
+    "include_level": true,
+    "include_process": false
   }
 }

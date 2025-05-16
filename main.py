@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict
@@ -16,17 +15,7 @@ from src.data_loader import DataLoader
 from src.llm_interface import LLMInterface
 from src.prompt_templates import PromptTemplates
 from src.rag_helper import RagHelper
-
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('attack_predictor.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+from src.logger_module import init_logger, get_logger, create_persistent_record
 
 class AttackPredictor:
     def __init__(self, config_path: str = "config.json"):
@@ -34,6 +23,11 @@ class AttackPredictor:
         self.config_path = config_path
         with open(config_path, 'r', encoding='utf-8') as f:
             self.config = json.load(f)
+        
+        # 初始化日志模块
+        init_logger(config_path)
+        self.logger = get_logger(__name__)
+        self.logger.info("AttackPredictor 初始化中...")
         
         self.llm_interface = LLMInterface(config_path)
         self.prompt_templates = PromptTemplates(config_path)
@@ -48,6 +42,8 @@ class AttackPredictor:
             'max_concurrent_batches': 2,
             'save_interval': 100
         })
+        
+        self.logger.info("AttackPredictor 初始化完成")
 
     def process_single_item(self, row: pd.Series, few_shot_examples: List[Dict[str, str]]) -> Dict[str, str]:
         """处理单个数据项
@@ -60,6 +56,9 @@ class AttackPredictor:
             Dict[str, str]: 预测结果
         """
         try:
+            logger = get_logger(f"{__name__}.process_item")
+            logger.debug(f"开始处理数据项: {row['uuid']}")
+            
             # 使用RAG分析响应
             matches = self.rag_helper.analyze_response(row['rsp'])
             rag_suggestion = self.rag_helper.get_suggested_result(matches)
@@ -75,11 +74,13 @@ class AttackPredictor:
             
             # 根据策略类型进行预测
             if self.best_strategy['type'] == 'single':
+                logger.debug(f"使用单模型策略: {self.best_strategy['model']}")
                 prediction = self.llm_interface.call_llm(
                     self.best_strategy['model'],
                     enhanced_prompt
                 )
             else:  # vote
+                logger.debug(f"使用多模型投票策略: {','.join(self.best_strategy['models'])}")
                 model_predictions = self.llm_interface.call_multiple_models(
                     self.best_strategy['models'],
                     enhanced_prompt
@@ -94,17 +95,39 @@ class AttackPredictor:
             
             # 如果LLM预测失败，使用RAG建议
             if prediction == "LLM_ERROR" and rag_suggestion:
+                logger.warning(f"LLM预测失败，使用RAG建议: {rag_suggestion}")
                 prediction = rag_suggestion
             elif prediction == "LLM_ERROR":
+                logger.warning(f"LLM预测失败，无RAG建议，使用UNKNOWN")
                 prediction = "UNKNOWN"
             
+            # 创建持久化记录
+            create_persistent_record({
+                'uuid': row['uuid'],
+                'request': row['req'],
+                'response': row['rsp'],
+                'prediction': prediction,
+                'rag_matches': matches,
+                'rag_suggestion': rag_suggestion
+            })
+            
+            logger.debug(f"数据项处理完成: {row['uuid']}, 预测结果: {prediction}")
             return {
                 'uuid': row['uuid'],
                 'predict': prediction
             }
             
         except Exception as e:
-            logger.error(f"Error processing row {row['uuid']}: {str(e)}")
+            logger = get_logger(f"{__name__}.process_item")
+            logger.error(f"处理数据项出错: {row['uuid']}, 错误: {str(e)}", exc_info=True)
+            
+            # 记录错误的持久化记录
+            create_persistent_record({
+                'uuid': row['uuid'],
+                'error': str(e),
+                'traceback': traceback.format_exc() if traceback else None
+            }, level="error")
+            
             return {
                 'uuid': row['uuid'],
                 'predict': 'UNKNOWN'
@@ -122,9 +145,13 @@ class AttackPredictor:
         Returns:
             List[Dict[str, str]]: 批次预测结果
         """
+        logger = get_logger(f"{__name__}.batch")
+        logger.info(f"开始处理批次 {batch_index}, 数据项数量: {len(batch_df)}")
+        
         predictions = []
         max_workers = min(self.batch_config['max_workers'], len(batch_df))
         
+        start_time = time.time()
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_row = {
                 executor.submit(self.process_single_item, row, few_shot_examples): row
@@ -133,17 +160,35 @@ class AttackPredictor:
             
             for future in tqdm(as_completed(future_to_row), 
                              total=len(future_to_row),
-                             desc=f"Processing batch {batch_index}"):
+                             desc=f"处理批次 {batch_index}"):
                 try:
                     result = future.result()
                     predictions.append(result)
                 except Exception as e:
                     row = future_to_row[future]
-                    logger.error(f"Error in batch {batch_index}, row {row['uuid']}: {str(e)}")
+                    logger.error(f"批次 {batch_index} 中处理行 {row['uuid']} 出错: {str(e)}", 
+                                exc_info=True)
                     predictions.append({
                         'uuid': row['uuid'],
                         'predict': 'UNKNOWN'
                     })
+        
+        # 记录批处理统计信息
+        batch_time = time.time() - start_time
+        items_per_second = len(batch_df) / batch_time
+        logger.info(f"批次 {batch_index} 统计信息:")
+        logger.info(f"- 处理时间: {batch_time:.2f}s")
+        logger.info(f"- 每秒处理项数: {items_per_second:.2f}")
+        
+        # 创建批处理持久化记录
+        create_persistent_record({
+            'batch_index': batch_index,
+            'batch_size': len(batch_df),
+            'processing_time': batch_time,
+            'items_per_second': items_per_second,
+            'success_count': sum(1 for p in predictions if p['predict'] != 'UNKNOWN'),
+            'unknown_count': sum(1 for p in predictions if p['predict'] == 'UNKNOWN')
+        }, level="info")
         
         return predictions
 
@@ -159,12 +204,15 @@ class AttackPredictor:
         Returns:
             List[Dict[str, str]]: 预测结果列表
         """
+        logger = get_logger(f"{__name__}.predict")
+        logger.info(f"开始预测处理, 数据项总数: {len(df_unlabeled)}")
+        
         all_predictions = []
         batch_generator = self.data_loader.get_batch_generator(df_unlabeled)
         
         for batch_index, batch_df in enumerate(batch_generator):
             start_time = time.time()
-            
+
             # 处理当前批次
             batch_predictions = self.process_batch(
                 batch_df, 
@@ -172,7 +220,7 @@ class AttackPredictor:
                 batch_index
             )
             all_predictions.extend(batch_predictions)
-            
+
             # 计算批处理统计信息
             batch_time = time.time() - start_time
             items_per_second = len(batch_df) / batch_time
@@ -183,18 +231,24 @@ class AttackPredictor:
             # 定期保存中间结果
             if self.batch_config['enabled'] and \
                len(all_predictions) >= self.batch_config['save_interval']:
+                intermediate_path = f"{output_path}.intermediate.{batch_index}"
+                logger.info(f"保存中间结果到: {intermediate_path}")
                 self.data_loader.save_batch_predictions(
                     all_predictions,
-                    output_path,
+                    intermediate_path,
                     batch_index
                 )
         
+        logger.info(f"预测处理完成, 总预测项数: {len(all_predictions)}")
         return all_predictions
 
     def majority_vote(self, predictions: List[str]) -> str:
         """多数投票"""
+        logger = get_logger(f"{__name__}.vote")
+        
         valid_predictions = [p for p in predictions if p != "LLM_ERROR"]
         if not valid_predictions:
+            logger.warning("所有模型预测都失败, 返回UNKNOWN")
             return "UNKNOWN"
         
         votes = {}
@@ -204,10 +258,17 @@ class AttackPredictor:
         max_votes = max(votes.values())
         winners = [label for label, count in votes.items() if count == max_votes]
         
-        return winners[0] if len(winners) == 1 else "UNKNOWN"
+        if len(winners) == 1:
+            logger.debug(f"多数投票结果: {winners[0]}, 得票: {max_votes}/{len(valid_predictions)}")
+            return winners[0]
+        else:
+            logger.warning(f"多数投票平局: {winners}, 返回UNKNOWN")
+            return "UNKNOWN"
 
     def weighted_vote(self, predictions: Dict[str, str], weights: Dict[str, float]) -> str:
         """加权投票"""
+        logger = get_logger(f"{__name__}.vote")
+        
         scores = {label: 0.0 for label in self.config['labels']}
         
         for model, pred in predictions.items():
@@ -217,7 +278,12 @@ class AttackPredictor:
         max_score = max(scores.values())
         winners = [label for label, score in scores.items() if score == max_score]
         
-        return winners[0] if len(winners) == 1 else "UNKNOWN"
+        if len(winners) == 1:
+            logger.debug(f"加权投票结果: {winners[0]}, 得分: {max_score}")
+            return winners[0]
+        else:
+            logger.warning(f"加权投票平局: {winners}, 返回UNKNOWN")
+            return "UNKNOWN"
 
     def generate_output_filename(self) -> str:
         """生成输出文件名"""
@@ -226,6 +292,10 @@ class AttackPredictor:
 
 def main():
     """主函数"""
+    # 初始化日志模块
+    init_logger()
+    logger = get_logger("main")
+    
     parser = argparse.ArgumentParser(description="攻击结果识别主程序")
     parser.add_argument(
         '--labeled-data',
@@ -251,28 +321,63 @@ def main():
     
     try:
         # 初始化预测器
+        logger.info("初始化攻击预测器...")
         predictor = AttackPredictor(args.config)
         
         # 加载数据
-        logger.info("Loading data...")
+        logger.info("正在加载数据...")
         df_labeled = predictor.data_loader.load_labeled_data(args.labeled_data)
         df_unlabeled = predictor.data_loader.load_unlabeled_data(args.unlabeled_data)
         
+        logger.info(f"已加载标注数据: {len(df_labeled)}行")
+        logger.info(f"已加载未标注数据: {len(df_unlabeled)}行")
+        
         # 获取few-shot示例
         few_shot_examples = predictor.data_loader.select_few_shot_examples(df_labeled)
+        logger.info(f"已选择few-shot示例: {len(few_shot_examples)}个")
+        
+        # 创建持久化记录
+        create_persistent_record({
+            'run_timestamp': datetime.now().isoformat(),
+            'labeled_data_path': args.labeled_data,
+            'unlabeled_data_path': args.unlabeled_data,
+            'labeled_data_count': len(df_labeled),
+            'unlabeled_data_count': len(df_unlabeled),
+            'few_shot_examples_count': len(few_shot_examples),
+            'config_path': args.config,
+            'best_strategy': predictor.best_strategy
+        })
         
         # 进行预测
-        logger.info("Starting prediction...")
+        logger.info("开始预测...")
         output_path = Path(args.output_dir) / predictor.generate_output_filename()
         predictions = predictor.predict(df_unlabeled, few_shot_examples, str(output_path))
         
         # 保存结果
         predictor.data_loader.save_predictions(predictions, output_path)
-        logger.info(f"Results saved to {output_path}")
+        logger.info(f"结果已保存到: {output_path}")
+        
+        # 记录运行结束信息
+        create_persistent_record({
+            'run_completed': True,
+            'predictions_count': len(predictions),
+            'output_path': str(output_path),
+            'success_count': sum(1 for p in predictions if p['predict'] != 'UNKNOWN'),
+            'unknown_count': sum(1 for p in predictions if p['predict'] == 'UNKNOWN')
+        })
         
     except Exception as e:
-        logger.error(f"Error in main execution: {str(e)}")
+        logger.error(f"主程序执行错误: {str(e)}", exc_info=True)
+        
+        # 记录错误信息
+        import traceback
+        create_persistent_record({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, level="error")
+        
         raise
 
 if __name__ == '__main__':
+    import traceback  # 移到这里以确保它被导入
     main()

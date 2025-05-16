@@ -13,14 +13,12 @@
 """
 
 import json
-import logging
 import re
 from pathlib import Path
 from typing import List, Dict, Optional, Union
 
-# 配置日志
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
+from src.logger_module import get_logger, create_persistent_record
 
 class RagHelper:
     """RAG辅助工具类
@@ -64,13 +62,23 @@ class RagHelper:
                 ...
             }
         """
+        # 获取日志记录器
+        self.logger = get_logger(__name__)
+        self.logger.info("初始化RagHelper")
+        self.logger.debug(f"使用模式文件: {patterns_file}")
+        
         try:
             with open(patterns_file, 'r', encoding='utf-8') as f:
                 self.patterns = json.load(f)
             
             # 编译所有正则表达式并缓存
             self.compiled_patterns = {}
+            pattern_count = 0
+            
             for category, patterns in self.patterns.items():
+                self.logger.debug(f"编译 {category} 类别的 {len(patterns)} 个模式")
+                pattern_count += len(patterns)
+                
                 self.compiled_patterns[category] = [
                     {
                         'regex': re.compile(p['pattern'], re.IGNORECASE),
@@ -80,10 +88,40 @@ class RagHelper:
                     for p in patterns
                 ]
             
-            logger.info(f"Successfully loaded {sum(len(p) for p in self.patterns.values())} patterns")
+            self.logger.info(f"成功加载 {pattern_count} 个模式")
+            
+            # 持久化记录
+            create_persistent_record({
+                'operation': 'init_rag_helper',
+                'patterns_file': patterns_file,
+                'pattern_count': pattern_count,
+                'categories': list(self.patterns.keys()),
+                'category_counts': {k: len(v) for k, v in self.patterns.items()}
+            })
+            
+        except FileNotFoundError:
+            self.logger.error(f"模式文件不存在: {patterns_file}")
+            create_persistent_record({
+                'operation': 'init_rag_helper',
+                'error': f"模式文件不存在: {patterns_file}"
+            }, level="error")
+            raise
+            
+        except json.JSONDecodeError as e:
+            self.logger.error(f"模式文件格式不正确: {patterns_file}, 错误: {str(e)}")
+            create_persistent_record({
+                'operation': 'init_rag_helper',
+                'error': f"模式文件格式不正确: {patterns_file}",
+                'details': str(e)
+            }, level="error")
+            raise
             
         except Exception as e:
-            logger.error(f"Error loading patterns: {str(e)}")
+            self.logger.error(f"加载模式时出错: {str(e)}", exc_info=True)
+            create_persistent_record({
+                'operation': 'init_rag_helper',
+                'error': str(e)
+            }, level="error")
             raise
 
     def analyze_response(self, response: str) -> List[Dict[str, str]]:
@@ -106,15 +144,35 @@ class RagHelper:
             3. 支持多个模式同时匹配
             4. 返回所有匹配的模式，而不是仅返回第一个匹配
         """
+        self.logger.debug(f"分析响应文本 (长度: {len(response)} 字符)")
         matches = []
         
         for category, patterns in self.compiled_patterns.items():
+            category_matches = 0
             for pattern in patterns:
                 if pattern['regex'].search(response):
                     matches.append({
                         'type': pattern['type'],
                         'result': pattern['result']
                     })
+                    category_matches += 1
+                    self.logger.debug(f"匹配到 {pattern['type']} 模式，建议结果: {pattern['result']}")
+            
+            if category_matches > 0:
+                self.logger.debug(f"在 {category} 类别中找到 {category_matches} 个匹配")
+        
+        if matches:
+            self.logger.info(f"分析完成，找到 {len(matches)} 个匹配")
+        else:
+            self.logger.info("分析完成，未找到匹配")
+        
+        # 持久化记录分析结果
+        create_persistent_record({
+            'operation': 'analyze_response',
+            'response_length': len(response),
+            'matches_count': len(matches),
+            'matches': matches
+        })
         
         return matches
 
@@ -142,16 +200,31 @@ class RagHelper:
             - UNKNOWN用作默认的降级选项
         """
         if not matches:
+            self.logger.debug("没有匹配结果，无法提供建议")
             return None
         
+        # 统计不同结果的出现次数
+        result_counts = {
+            'SUCCESS': sum(1 for m in matches if m['result'] == 'SUCCESS'),
+            'FAILURE': sum(1 for m in matches if m['result'] == 'FAILURE'),
+            'UNKNOWN': sum(1 for m in matches if m['result'] == 'UNKNOWN')
+        }
+        
+        self.logger.debug(f"匹配结果统计: {result_counts}")
+        
         # 结果优先级：SUCCESS > FAILURE > UNKNOWN
-        if any(m['result'] == 'SUCCESS' for m in matches):
+        if result_counts['SUCCESS'] > 0:
+            self.logger.info(f"建议结果: SUCCESS (基于 {result_counts['SUCCESS']} 个匹配)")
             return 'SUCCESS'
-        elif any(m['result'] == 'FAILURE' for m in matches):
+        elif result_counts['FAILURE'] > 0:
+            self.logger.info(f"建议结果: FAILURE (基于 {result_counts['FAILURE']} 个匹配)")
             return 'FAILURE'
-        elif any(m['result'] == 'UNKNOWN' for m in matches):
+        elif result_counts['UNKNOWN'] > 0:
+            self.logger.info(f"建议结果: UNKNOWN (基于 {result_counts['UNKNOWN']} 个匹配)")
             return 'UNKNOWN'
         
+        # 正常情况下不会执行到这里
+        self.logger.warning("匹配结果列表中没有有效的结果建议")
         return None
 
     def enhance_prompt_with_matches(self, prompt: str, matches: List[Dict[str, str]]) -> str:
@@ -174,7 +247,10 @@ class RagHelper:
             4. 如果没有匹配结果，返回原始prompt
         """
         if not matches:
+            self.logger.debug("无匹配结果，返回原始prompt")
             return prompt
+        
+        self.logger.info(f"使用 {len(matches)} 个匹配结果增强prompt")
         
         # 在prompt中添加匹配到的模式信息
         patterns_info = "\n# Matched Patterns\n"
@@ -184,6 +260,21 @@ class RagHelper:
         # 在Current Task之前插入匹配信息
         task_index = prompt.find("# Current Task")
         if task_index != -1:
-            return prompt[:task_index] + patterns_info + prompt[task_index:]
+            self.logger.debug("在'# Current Task'之前插入匹配信息")
+            enhanced_prompt = prompt[:task_index] + patterns_info + prompt[task_index:]
+        else:
+            self.logger.debug("在prompt末尾添加匹配信息")
+            enhanced_prompt = prompt + patterns_info
         
-        return prompt + patterns_info
+        # 记录prompt增强
+        self.logger.debug(f"原始prompt长度: {len(prompt)}, 增强后: {len(enhanced_prompt)}")
+        
+        # 持久化记录
+        create_persistent_record({
+            'operation': 'enhance_prompt',
+            'original_length': len(prompt),
+            'enhanced_length': len(enhanced_prompt),
+            'matches_count': len(matches)
+        })
+        
+        return enhanced_prompt
