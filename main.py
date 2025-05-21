@@ -73,8 +73,17 @@ class AttackPredictor:
             if current_strategy.get('use_review_filter', False):
                 logger.debug("使用ReviewFilter模式进行预测")
                 
-                # 检查模型池
-                models_primary = current_strategy.get('models', list(self.llm_interface.model_pool))
+                # 检查是否为单一模型策略
+                if current_strategy['type'] == 'single_model' or current_strategy['type'] == 'single':
+                    # 提取单一模型名称
+                    model_name = current_strategy.get('model_name') or current_strategy.get('model')
+                    logger.info(f"检测到单一模型ReviewFilter策略，主模型: {model_name}")
+                    models_primary = [model_name]
+                else:
+                    # 多模型策略
+                    models_primary = current_strategy.get('models', list(self.llm_interface.model_pool))
+                
+                # 设置验证模型
                 model_verify = current_strategy.get('verify_model', 'secgpt7b')
                 
                 # 调用analyze_attack方法
