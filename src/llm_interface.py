@@ -295,14 +295,24 @@ class LLMInterface:
             few_shot_examples=few_shot_examples
         )
         
-        # 4. 调用多个模型进行初步分析
-        self.logger.info("开始初步分析")
-        primary_results = self.call_multiple_models(models_primary, primary_prompt)
-        self.logger.debug(f"初步分析结果: {primary_results}")
+        # 4. 检查是否为单一模型策略（models_primary仅包含一个模型）
+        if len(models_primary) == 1:
+            # 单一模型策略，直接调用单一模型
+            self.logger.info(f"检测到单一模型策略，只调用模型: {models_primary[0]}")
+            single_model_result = self.call_llm(models_primary[0], primary_prompt)
+            primary_results = {models_primary[0]: single_model_result}
+            initial_result = single_model_result
+            confidence = 1.0  # 单一模型置信度默认为1.0
+        else:
+            # 多模型策略，调用多个模型进行初步分析
+            self.logger.info("开始初步分析")
+            primary_results = self.call_multiple_models(models_primary, primary_prompt)
+            self.logger.debug(f"初步分析结果: {primary_results}")
+            
+            # 处理初步分析结果
+            initial_result, confidence = self._get_majority_vote(primary_results)
         
-        # 5. 处理初步分析结果
-        initial_result, confidence = self._get_majority_vote(primary_results)
-        self.logger.info(f"初步分析多数结果: {initial_result}, 置信度: {confidence:.2f}")
+        self.logger.info(f"初步分析结果: {initial_result}, 置信度: {confidence:.2f}")
         
         # 6. 如果启用验证且初步结果不是LLM_ERROR，进行二次验证
         verification = {}
