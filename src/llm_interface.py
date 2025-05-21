@@ -279,7 +279,14 @@ class LLMInterface:
         # 1. 设置默认值
         if not models_primary:
             models_primary = list(self.model_pool)
-        if not model_verify and use_verify:
+        
+        # 检查是否为单一模型策略，如果是，则同时使用该模型作为验证模型
+        is_single_model = len(models_primary) == 1
+        if is_single_model and use_verify and not model_verify:
+            # 在单一模型策略且启用验证的情况下，默认使用同一模型进行验证
+            model_verify = models_primary[0]
+            self.logger.info(f"单一模型策略，将使用同一模型进行验证: {model_verify}")
+        elif not model_verify and use_verify:
             model_verify = "secgpt7b"  # 默认使用secgpt7b作为验证模型
             
         self.logger.debug(f"主分析模型: {models_primary}, 验证模型: {model_verify if use_verify else '不使用'}")
@@ -296,7 +303,7 @@ class LLMInterface:
         )
         
         # 4. 检查是否为单一模型策略（models_primary仅包含一个模型）
-        if len(models_primary) == 1:
+        if is_single_model:
             # 单一模型策略，直接调用单一模型
             self.logger.info(f"检测到单一模型策略，只调用模型: {models_primary[0]}")
             single_model_result = self.call_llm(models_primary[0], primary_prompt)
