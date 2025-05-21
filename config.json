@@ -14,10 +14,13 @@
   },
   "labels": ["SUCCESS", "FAILURE", "UNKNOWN"],
   "best_strategy": {
-    "name": "SingleModel_qwen3_8b",
+    "name": "SingleModel_qwen3_8b_review",
     "type": "single_model",
     "model_name": "qwen3-8b",
-    "prompt_template": "v1"
+    "enabled": true,
+    "prompt_template": "v3",
+    "use_review_filter": true,
+    "verify_model": null
   },
   "strategy_options": {
     "Vote_SQD_P1_Majority": {
@@ -30,7 +33,12 @@
     "Vote_SQDD_P1_Majority": {
       "name": "Vote_SQDD_P1_Majority",
       "type": "vote",
-      "models": ["secgpt7b", "qwen3-8b", "deepseek-r1-distill-qwen7b", "qwen7b"],
+      "models": [
+        "secgpt7b",
+        "qwen3-8b",
+        "deepseek-r1-distill-qwen7b",
+        "qwen7b"
+      ],
       "prompt_template": "v1",
       "vote_method": "majority"
     },
@@ -48,6 +56,15 @@
       "type": "vote",
       "models": ["qwen3-8b", "deepseek-r1-distill-qwen7b", "qwen7b"],
       "verify_model": "secgpt7b",
+      "prompt_template": "v3",
+      "use_review_filter": true,
+      "vote_method": "majority"
+    },
+    "ReviewFilter_Qwen3_8b": {
+      "name": "ReviewFilter_Qwen3_8b",
+      "type": "vote",
+      "models": ["secgpt7b", "deepseek-r1-distill-qwen7b", "qwen7b"],
+      "verify_model": "qwen3-8b",
       "prompt_template": "v3",
       "use_review_filter": true,
       "vote_method": "majority"
@@ -69,6 +86,15 @@
       "name": "SingleModel_secgpt7b_review",
       "type": "single_model",
       "model_name": "secgpt7b",
+      "enabled": true,
+      "prompt_template": "v3",
+      "use_review_filter": true,
+      "verify_model": null
+    },
+    "qwen3-8b_review": {
+      "name": "SingleModel_qwen3_8b_review",
+      "type": "single_model",
+      "model_name": "qwen3-8b",
       "enabled": true,
       "prompt_template": "v3",
       "use_review_filter": true,

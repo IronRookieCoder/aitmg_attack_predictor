@@ -95,7 +95,7 @@ class LLMInterface:
                 'description': "通用基础模型，支持128K上下文，在知识、代码、推理等方面表现优秀"
             },
             'qwen3-8b': {
-                'temperature': 0,                 # 保持确定性输出 
+                'temperature': 0.6,                 # 非思考模式下设为0.7
                 'max_tokens': 2048,               # 允许较长输出
                 'top_p': 1,                       # 保持全分布采样
                 'top_k': 20,                      # 限制候选token数量

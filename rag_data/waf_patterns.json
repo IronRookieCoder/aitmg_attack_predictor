@@ -19,6 +19,36 @@
       "pattern": "Request blocked by security rules",
       "type": "WAF_BLOCK",
       "result": "FAILURE"
+    },
+    {
+      "pattern": "Forbidden - WAF Rule Triggered",
+      "type": "WAF_BLOCK",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "Firewall Protection - Access Denied",
+      "type": "WAF_BLOCK",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "安全拦截 - 可疑请求",
+      "type": "WAF_BLOCK",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "Malicious request detected",
+      "type": "WAF_BLOCK",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "Security violation detected",
+      "type": "WAF_BLOCK",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "ModSecurity Alert",
+      "type": "WAF_BLOCK",
+      "result": "FAILURE"
     }
   ],
   "sql_injection_patterns": [
@@ -41,6 +71,36 @@
       "pattern": "ORA-[0-9][0-9][0-9][0-9]",
       "type": "SQL_ERROR",
       "result": "SUCCESS"
+    },
+    {
+      "pattern": "Microsoft SQL Server.*Error",
+      "type": "SQL_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "SQLSTATE\\[[0-9A-Z]+\\]",
+      "type": "SQL_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Unclosed quotation mark after the character string",
+      "type": "SQL_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "SQLite3::query\\(\\): SQL error:",
+      "type": "SQL_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "JDBC.*SQLException",
+      "type": "SQL_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "DB2 SQL error",
+      "type": "SQL_ERROR",
+      "result": "SUCCESS"
     }
   ],
   "sensitive_info_patterns": [
@@ -57,6 +117,41 @@
     {
       "pattern": "root:.*:0:0:",
       "type": "FILE_CONTENT",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "database_user.*password",
+      "type": "CREDENTIALS_LEAK",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "信用卡号码.*[0-9]{16}",
+      "type": "CARD_LEAK",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "用户名密码列表",
+      "type": "USER_DUMP",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "INSERT INTO.*VALUES",
+      "type": "SQL_DUMP",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "private_key.*-----BEGIN.*KEY-----",
+      "type": "KEY_LEAK",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "api_key.*[a-zA-Z0-9]{20,}",
+      "type": "API_KEY_LEAK",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "身份证号.*[0-9]{17}[0-9Xx]",
+      "type": "ID_LEAK",
       "result": "SUCCESS"
     }
   ],
@@ -75,6 +170,41 @@
       "pattern": "Authentication failed",
       "type": "AUTH_FAILURE",
       "result": "FAILURE"
+    },
+    {
+      "pattern": "用户名或密码错误",
+      "type": "AUTH_FAILURE",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "账号不存在",
+      "type": "AUTH_FAILURE",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "密码错误",
+      "type": "AUTH_FAILURE",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "Account locked",
+      "type": "AUTH_FAILURE",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "Too many failed login attempts",
+      "type": "AUTH_FAILURE",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "Access token (expired|invalid)",
+      "type": "AUTH_FAILURE",
+      "result": "FAILURE"
+    },
+    {
+      "pattern": "Please sign in again",
+      "type": "AUTH_FAILURE",
+      "result": "FAILURE"
     }
   ],
   "generic_error_patterns": [
@@ -87,6 +217,209 @@
       "pattern": "500 Server Error",
       "type": "SERVER_ERROR",
       "result": "UNKNOWN"
+    },
+    {
+      "pattern": "服务器内部错误",
+      "type": "SERVER_ERROR",
+      "result": "UNKNOWN"
+    },
+    {
+      "pattern": "系统繁忙,请稍后再试",
+      "type": "SERVER_ERROR",
+      "result": "UNKNOWN"
+    },
+    {
+      "pattern": "Exception in thread \"main\"",
+      "type": "SERVER_ERROR",
+      "result": "UNKNOWN"
+    },
+    {
+      "pattern": "Uncaught exception",
+      "type": "SERVER_ERROR",
+      "result": "UNKNOWN"
+    },
+    {
+      "pattern": "Error ID: [A-Z0-9]+",
+      "type": "SERVER_ERROR",
+      "result": "UNKNOWN"
+    },
+    {
+      "pattern": "Fatal error:",
+      "type": "SERVER_ERROR",
+      "result": "UNKNOWN"
+    },
+    {
+      "pattern": "Something went wrong",
+      "type": "SERVER_ERROR",
+      "result": "UNKNOWN"
+    },
+    {
+      "pattern": "技术团队已获悉此问题",
+      "type": "SERVER_ERROR",
+      "result": "UNKNOWN"
+    }
+  ],
+  "xss_attack_patterns": [
+    {
+      "pattern": "alert\\(['\"][^'\"]*['\"]\\)",
+      "type": "XSS_REFLECTED",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "document\\.cookie",
+      "type": "XSS_REFLECTED",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "<script>[^<]*</script>",
+      "type": "XSS_STORED",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "javascript:.*\\(.*\\)",
+      "type": "XSS_DOM",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "onerror=.*\\(.*\\)",
+      "type": "XSS_REFLECTED",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "XSS Vulnerability Confirmed",
+      "type": "XSS_REPORT",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "成功执行了跨站脚本",
+      "type": "XSS_REPORT",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "XSS Payload Executed",
+      "type": "XSS_REPORT",
+      "result": "SUCCESS"
+    }
+  ],
+  "command_injection_patterns": [
+    {
+      "pattern": "uid=\\d+\\(\\w+\\) gid=\\d+\\(\\w+\\)",
+      "type": "CMD_EXEC",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "\\w+:\\w+:\\d+:\\d+:.+:/home/\\w+:",
+      "type": "CMD_EXEC",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Directory of [C-Z]:\\\\",
+      "type": "CMD_EXEC",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Volume Serial Number is [0-9A-F-]+",
+      "type": "CMD_EXEC",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Windows IP Configuration",
+      "type": "CMD_EXEC",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Linux version [0-9\\.\\-]+",
+      "type": "CMD_EXEC",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "系统已执行命令",
+      "type": "CMD_EXEC",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Command executed successfully",
+      "type": "CMD_EXEC_REPORT",
+      "result": "SUCCESS"
+    }
+  ],
+  "file_inclusion_patterns": [
+    {
+      "pattern": "Warning: include\\(\\)",
+      "type": "LFI_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Warning: require_once\\(\\)",
+      "type": "LFI_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Failed opening required",
+      "type": "LFI_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "php://filter/convert\\.base64-encode",
+      "type": "LFI_CONTENT",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "<\\?php.*\\?>",
+      "type": "LFI_CONTENT",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "file_get_contents\\(\\): failed to open stream",
+      "type": "LFI_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Include File Path Manipulation",
+      "type": "LFI_REPORT",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "成功包含了敏感文件",
+      "type": "LFI_REPORT",
+      "result": "SUCCESS"
+    }
+  ],
+  "ssrf_patterns": [
+    {
+      "pattern": "Connection refused to host",
+      "type": "SSRF_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "域名解析失败",
+      "type": "SSRF_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "连接超时",
+      "type": "SSRF_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "HTTP request failed",
+      "type": "SSRF_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Unable to connect to remote host",
+      "type": "SSRF_ERROR",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "Server Side Request Forgery Confirmed",
+      "type": "SSRF_REPORT",
+      "result": "SUCCESS"
+    },
+    {
+      "pattern": "成功访问了内部资源",
+      "type": "SSRF_REPORT",
+      "result": "SUCCESS"
     }
   ]
 }
