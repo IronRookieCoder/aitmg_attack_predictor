@@ -89,10 +89,19 @@
       "enabled": true,
       "prompt_template": "v3",
       "use_review_filter": true,
-      "verify_model": null
+      "verify_model": "qwen3-8b"
     },
     "qwen3-8b_review": {
       "name": "SingleModel_qwen3_8b_review",
+      "type": "single_model",
+      "model_name": "qwen3-8b",
+      "enabled": true,
+      "prompt_template": "v3",
+      "use_review_filter": true,
+      "verify_model": "secgpt7b"
+    },
+    "qwen3-8b_self_review": {
+      "name": "SingleModel_qwen3_8b_self_review",
       "type": "single_model",
       "model_name": "qwen3-8b",
       "enabled": true,

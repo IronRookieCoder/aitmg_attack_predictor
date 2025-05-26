@@ -24,6 +24,7 @@ from openai import OpenAI
 
 from src.logger_module import get_logger
 from src.prompt_templates import PromptTemplates
+from src.llm_interface_helper import extract_verify_model
 
 class LLMInterface:
     """LLM接口封装类
@@ -34,11 +35,14 @@ class LLMInterface:
     - 错误重试
     - 超时处理
     - 响应验证
+    - 单一模型策略下的验证模型配置
     
     属性:
-        config: Dict 配置信息，包含工号、模型池等
+        config: Dict 配置信息，包含工号、模型池、验证模型配置等
         max_retries: int 最大重试次数
         timeout: int API调用超时时间（秒）
+        model_pool: set 可用模型集合
+        model_configs: Dict 不同模型的最佳参数配置
     """
     
     def __init__(self, config_path: str = "config.json"):
@@ -234,14 +238,13 @@ class LLMInterface:
         
         # 计算总耗时
         elapsed_time = time.time() - start_time
-        
-        # 记录所有模型的调用结果
+          # 记录所有模型的调用结果
         self.logger.info(f"所有模型调用完成，总耗时: {elapsed_time:.2f}秒")
         for model, result in results.items():
             self.logger.debug(f"模型 {model} 结果: {result}")
         
         return results
-
+        
     def analyze_attack(self, req: str, rsp: str, 
                      few_shot_examples: Optional[List[Dict[str, str]]] = None,
                      use_verify: bool = True,
@@ -255,13 +258,19 @@ class LLMInterface:
         3. 可选地使用验证模型进行二次验证(ReviewFilter流程)
         4. 返回最终结果和详细分析信息
         
+        支持单一模型策略配置验证模型：
+        - 当只有一个主分析模型时(单一模型策略)，会优先从配置文件中的single_model_strategies寻找匹配的策略
+        - 如果找到匹配策略且配置了verify_model，则使用该模型进行验证
+        - 如果未找到匹配策略或未配置verify_model，则使用全局默认验证模型
+        - 如果全局默认验证模型也未配置，则使用主分析模型自身进行验证
+        
         Args:
             req: 请求数据
             rsp: 响应数据
             few_shot_examples: 可选的few-shot示例
             use_verify: 是否使用二次验证模型验证结果
             models_primary: 用于主要分析的模型列表，默认使用配置的模型池
-            model_verify: 用于验证的模型，默认使用secgpt7b
+            model_verify: 用于验证的模型，默认会根据配置和策略自动选择
             
         Returns:
             Dict: 包含分析结果和详细信息的字典
@@ -279,15 +288,25 @@ class LLMInterface:
         # 1. 设置默认值
         if not models_primary:
             models_primary = list(self.model_pool)
-        
-        # 检查是否为单一模型策略，如果是，则同时使用该模型作为验证模型
-        is_single_model = len(models_primary) == 1
-        if is_single_model and use_verify and not model_verify:
-            # 在单一模型策略且启用验证的情况下，默认使用同一模型进行验证
-            model_verify = models_primary[0]
-            self.logger.info(f"单一模型策略，将使用同一模型进行验证: {model_verify}")
-        elif not model_verify and use_verify:
-            model_verify = "secgpt7b"  # 默认使用secgpt7b作为验证模型
+          # 检查是否为单一模型策略
+        is_single_model = len(models_primary) == 1        # 2. 处理验证模型选择逻辑
+        if use_verify:
+            # 如果已指定验证模型且在模型池中，直接使用
+            if model_verify and model_verify in self.model_pool:
+                self.logger.info(f"使用指定的验证模型: {model_verify}")
+            # 单一模型策略，使用辅助方法获取验证模型
+            elif is_single_model:
+                primary_model = models_primary[0]
+                model_verify = self._get_verify_model_for_single_model(primary_model)
+            # 多模型策略或其他情况，使用默认验证模型
+            else:
+                # 尝试使用全局默认验证模型
+                default_verify_model = self.config.get('verification', {}).get('default_verify_model')
+                if default_verify_model and default_verify_model in self.model_pool:
+                    model_verify = default_verify_model
+                else:
+                    model_verify = "secgpt7b"  # 兜底默认使用secgpt7b作为验证模型
+                self.logger.info(f"使用默认验证模型: {model_verify}")
             
         self.logger.debug(f"主分析模型: {models_primary}, 验证模型: {model_verify if use_verify else '不使用'}")
         
@@ -623,3 +642,21 @@ class LLMInterface:
             elapsed_time = time.time() - start_time
             self.logger.error(f"调用Deepseek出错: {str(e)}")
             raise
+
+    def _get_verify_model_for_single_model(self, primary_model: str) -> str:
+        """为单一模型策略获取合适的验证模型
+        
+        该方法封装了单一模型策略下验证模型的选择逻辑，避免代码重复。
+        
+        Args:
+            primary_model: 主分析模型名称
+            
+        Returns:
+            str: 验证模型名称
+        """
+        return extract_verify_model(
+            config=self.config,
+            primary_model=primary_model,
+            model_pool=self.model_pool,
+            logger=self.logger
+        )

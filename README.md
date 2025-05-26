@@ -127,9 +127,79 @@ python merge_batches.py --input results/ --output final.csv
   "batch_processing": {
     "enabled": true,
     "batch_size": 32
+  },
+  "verification": {
+    "allow_override": true,
+    "default_verify_model": "secgpt7b"
+  },
+  "single_model_strategies": {
+    "qwen3-8b_review": {
+      "name": "SingleModel_qwen3_8b_review",
+      "type": "single_model",
+      "model_name": "qwen3-8b",
+      "enabled": true,
+      "prompt_template": "v3",
+      "use_review_filter": true,
+      "verify_model": "secgpt7b"
+    }
   }
 }
 ```
+
+### 单一模型策略验证配置
+
+在单一模型策略中，支持配置其他模型进行验证。配置方法如下：
+
+1. 在 `config.json` 的 `single_model_strategies` 部分，为每个单一模型策略定义：
+
+   - `model_name`: 主要分析模型
+   - `use_review_filter`: 设为 `true` 以启用验证
+   - `verify_model`: 指定用于验证的模型
+
+2. 验证模型选择逻辑：
+   - 如果找到匹配的策略且配置了 `verify_model`，则使用该模型进行验证
+   - 如果未找到匹配策略或未配置 `verify_model`，则使用全局默认验证模型（在 `verification.default_verify_model` 中配置）
+   - 如果全局默认验证模型也未配置，则使用主分析模型自身进行验证
+
+示例配置：
+
+```json
+"single_model_strategies": {
+  "secgpt7b_review": {
+    "model_name": "secgpt7b",
+    "use_review_filter": true,
+    "verify_model": "qwen3-8b"
+  },
+  "qwen3-8b_review": {
+    "model_name": "qwen3-8b",
+    "use_review_filter": true,
+    "verify_model": "secgpt7b"
+  },
+  "qwen3-8b_self_review": {
+    "model_name": "qwen3-8b",
+    "use_review_filter": true,
+    "verify_model": null   // 使用默认验证模型或自身
+  }
+}
+```
+
+### 单一模型验证示例
+
+项目提供了一个专门用于测试单一模型策略及其验证模型配置的示例脚本：`single_model_verify_example.py`
+
+使用方法：
+
+```bash
+python single_model_verify_example.py --model qwen3-8b --verify secgpt7b --req test_req.txt --rsp test_rsp.txt
+```
+
+参数说明：
+
+- `--model`: 主分析模型名称
+- `--verify`: [可选] 验证模型名称，不指定则使用配置文件中的设置
+- `--req`: 测试请求内容或文件路径
+- `--rsp`: 测试响应内容或文件路径
+- `--config`: [可选] 配置文件路径，默认为`config.json`
 
 ### 模式文件 (rag_data/waf_patterns.json)
 
